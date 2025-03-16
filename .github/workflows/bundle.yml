@@ -10,10 +10,14 @@ jobs:
   identify-changes:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
         with:
           submodules: 'true'  # Pull submodules as well
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '23.x'
+      - run: npm ci
 
       - name: Run bundler to list changed manifests
         run: |
@@ -29,10 +33,14 @@ jobs:
       matrix:
         manifest: ${{ fromJson(needs.identify-changes.outputs.changed_manifests) }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
         with:
           submodules: 'true'  # Pull submodules as well (TODO: Only pull relevant submodules)
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '23.x'
+      - run: npm ci
 
       - name: Run bundler to create export for manifest
         run: |
@@ -60,10 +68,21 @@ jobs:
           git fetch origin export || git checkout --orphan export  # Create export branch if it doesn't exist
           git worktree add ./export export  # Add export branch in a separate directory
 
+      - uses: actions/checkout@v2
+      - name: Checkout export branch in a separate worktree
+        run: |
+          git fetch origin export || git checkout --orphan export  # Create export branch if it doesn't exist
+          git worktree add ./export export  # Add export branch in a separate directory
+
       - name: Download export contents
         run: |
           cd export
           git pull origin export
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '23.x'
+      - run: npm ci
 
       - name: Run bundler to finalize export
         run: |
