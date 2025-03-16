@@ -62,19 +62,19 @@ jobs:
 
       - name: Run bundler to create export for manifest
         run: |
-          npm run bundler -- bundle ${{ matrix.manifest }} --output export --source https://raw.githubusercontent.com/${{ github.repository }}/export
+          npm run bundler -- bundle ${{ matrix.manifest }} --output export --source https://raw.githubusercontent.com/${{ github.repository }}/${{ vars.deploy_branch }}
 
-      - name: Commit export files to the export branch
+      - name: Commit export files to the deploy branch
         run: |
-          git fetch origin export
+          git fetch origin ${{ vars.deploy_branch }}
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          (git checkout origin/export && git branch export && git checkout export) || (git checkout --orphan export && git reset --hard)
+          (git checkout origin/${{ vars.deploy_branch }} && git branch ${{ vars.deploy_branch }} && git checkout ${{ vars.deploy_branch }}) || (git checkout --orphan ${{ vars.deploy_branch }} && git reset --hard)
           cp -r export/* .
           rm -rf node_modules export
           git add .
           git commit -m "Add bundled files for ${{ matrix.manifest }}"
-          git push origin export --force
+          git push origin ${{ vars.deploy_branch }} --force
 
   # Step 3: Finalize the package registry
   finalize-registry:
@@ -82,12 +82,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Checkout export branch in a separate worktree
+      - name: Checkout deploy branch in a separate worktree
         run: |
-          git fetch origin export
-          git worktree add export-stage export || true
+          git fetch origin ${{ vars.deploy_branch }}
+          git worktree add export-stage ${{ vars.deploy_branch }} || true
           mv export-stage export
-          (git worktree remove export-stage && git branch -D export) || true
+          (git worktree remove export-stage && git branch -D ${{ vars.deploy_branch }}) || true
 
       - uses: actions/setup-node@v4
         with:
@@ -98,21 +98,20 @@ jobs:
         run: |
           npm run bundler -- registry --output export
 
-      - name: Commit registry to the export branch
+      - name: Commit registry to the deploy branch and flatten history
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          (git checkout origin/export && git branch export && git checkout export) || (git checkout --orphan export && git reset --hard)
+          (git checkout origin/${{ vars.deploy_branch }} && git branch ${{ vars.deploy_branch }} && git checkout ${{ vars.deploy_branch }}) || (git checkout --orphan ${{ vars.deploy_branch }} && git reset --hard)
           cp -r export/* .
           rm -rf node_modules export
           git add .
           git commit -m "Finalized package registry"
-          git push origin export --force
+          git push origin ${{ vars.deploy_branch }} --force
 
-      - name: Flatten history
-        run: |
+          # Flatten history
           git reset $(git rev-list --max-parents=0 HEAD)
           git add .
           git commit -m "Registry published"
-          git push origin export --force
+          git push origin ${{ vars.deploy_branch }} --force
 
