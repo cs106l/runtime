@@ -151,13 +151,14 @@ async function loadManifest(manifestPath: string): Promise<Manifest<Language>> {
 }
 
 async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl: string) {
-  const cwd = path.dirname(manifestPath);
+  const packageDir = path.dirname(manifestPath);
   const manifest = await loadManifest(manifestPath);
 
   /* Run build hook if needed */
-  if (manifest.build) execSync(manifest.build, { cwd });
+  if (manifest.build) execSync(manifest.build, { cwd: packageDir });
 
   /* Glob package files and tar */
+  const cwd = path.join(packageDir, manifest.rootDir ?? ".");
   const files = await glob(manifest.files ?? "**/*", {
     cwd,
     ignore: [path.relative(cwd, manifestPath)],
