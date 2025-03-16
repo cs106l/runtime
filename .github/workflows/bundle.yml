@@ -9,6 +9,8 @@ jobs:
   # Step 1: Identify changed manifests
   identify-changes:
     runs-on: ubuntu-latest
+    outputs:
+      manifests: ${{ steps.changed.outputs.manifests }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -21,10 +23,11 @@ jobs:
       - run: npm ci
 
       - name: Identify changed manifests
+        id: changed
         run: |
           changed_manifests=$(npm run bundler -- list --changed)
           echo "Changed manifests: $changed_manifests"
-          echo "changed_manifests=$changed_manifests" >> $GITHUB_ENV
+          echo "manifests=$changed_manifests" >> $GITHUB_OUTPUT
 
   # Step 2: Spin up jobs for each changed manifest
   bundle-manifests:
@@ -32,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        manifest: ${{ fromJson(needs.identify-changes.outputs.changed_manifests) }}
+        manifest: ${{ fromJson(needs.identify-changes.outputs.manifests) }}
     steps:
       - uses: actions/checkout@v2
         with:
