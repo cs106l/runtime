@@ -1,4 +1,4 @@
-name: Bundler and Export Workflow
+name: Bundle Packages
 
 on:
   push:
@@ -68,8 +68,10 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git fetch origin export || git checkout --orphan export  # Create export branch if not exists
+          git fetch origin export || git checkout --orphan export
+          git reset --hard
           cp -r export/* .
+          rm -rf export
           git add .
           git commit -m "Add bundled files for ${{ matrix.manifest }}"
           git push origin export --force
@@ -79,37 +81,31 @@ jobs:
     needs: bundle-manifests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main repository and export branch in a separate worktree
-        run: |
-          git fetch origin main
-          git checkout main
-          git fetch origin export || git checkout --orphan export  # Create export branch if it doesn't exist
-          git worktree add ./export export  # Add export branch in a separate directory
-
       - uses: actions/checkout@v2
       - name: Checkout export branch in a separate worktree
         run: |
-          git fetch origin export || git checkout --orphan export  # Create export branch if it doesn't exist
-          git worktree add ./export export  # Add export branch in a separate directory
-
-      - name: Download export contents
-        run: |
-          cd export
-          git pull origin export
+          git fetch origin main
+          git checkout main
+          git worktree add ./export export || true # Add export branch in a separate directory
 
       - uses: actions/setup-node@v4
         with:
           node-version: '23.x'
       - run: npm ci
 
-      - name: Run bundler to finalize export
+      - name: Finalize package registry
         run: |
           npm run bundler -- registry --output export
 
       - name: Commit export files to the export branch
         run: |
-          cd export
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git fetch origin export || git checkout --orphan export
+          git reset --hard
+          cp -r export/* .
+          rm -rf export
           git add .
-          git commit -m "Finalize package registry"
-          git push origin export
+          git commit -m "Finalized package registry"
+          git push origin export --force
 
