@@ -68,24 +68,23 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git fetch origin export || git checkout --orphan export
+          git checkout origin/export || git checkout --orphan export
           git reset --hard
           cp -r export/* .
-          rm -rf export
+          rm -rf export node_modules
           git add .
           git commit -m "Add bundled files for ${{ matrix.manifest }}"
           git push origin export --force
 
-  # Step 3: Consolidate export files and flatten the export branch
-  consolidate-export:
+  # Step 3: Finalize the package registry
+  finalize-registry:
     needs: bundle-manifests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Checkout export branch in a separate worktree
         run: |
-          git fetch origin main
-          git checkout main
+          git fetch
           git worktree add ./export export || true # Add export branch in a separate directory
 
       - uses: actions/setup-node@v4
@@ -97,14 +96,14 @@ jobs:
         run: |
           npm run bundler -- registry --output export
 
-      - name: Commit export files to the export branch
+      - name: Commit registry to the export branch
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git fetch origin export || git checkout --orphan export
+          git checkout origin/export || git checkout --orphan export
           git reset --hard
           cp -r export/* .
-          rm -rf export
+          rm -rf export node_modules
           git add .
           git commit -m "Finalized package registry"
           git push origin export --force
