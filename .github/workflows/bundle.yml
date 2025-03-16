@@ -68,7 +68,6 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git branch -D export || true
           (git checkout origin/export && git branch export && git checkout export) || (git checkout --orphan export && git reset --hard)
           cp -r export/* .
           rm -rf node_modules export
@@ -85,9 +84,9 @@ jobs:
       - name: Checkout export branch in a separate worktree
         run: |
           git fetch
-          git worktree add ./export-stage export || true
+          git worktree add export-stage export || true
           mv export-stage export
-          git worktree remove export || true
+          git worktree remove export-stage || true
 
       - uses: actions/setup-node@v4
         with:
@@ -102,7 +101,6 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git branch -D export || true
           (git checkout origin/export && git branch export && git checkout export) || (git checkout --orphan export && git reset --hard)
           cp -r export/* .
           rm -rf node_modules export
