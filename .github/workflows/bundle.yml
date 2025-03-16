@@ -1,0 +1,78 @@
+name: Bundler and Export Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # Step 1: Identify changed manifests
+  identify-changes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'  # Pull submodules as well
+
+      - name: Run bundler to list changed manifests
+        run: |
+          changed_manifests=$(npm run bundler -- list --changed)
+          echo "Changed manifests: $changed_manifests"
+          echo "changed_manifests=$changed_manifests" >> $GITHUB_ENV
+
+  # Step 2: Spin up jobs for each changed manifest
+  bundle-manifests:
+    needs: identify-changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        manifest: ${{ fromJson(needs.identify-changes.outputs.changed_manifests) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'  # Pull submodules as well (TODO: Only pull relevant submodules)
+
+      - name: Run bundler to create export for manifest
+        run: |
+          npm run bundler -- bundle ${{ matrix.manifest }} --output export --source https://raw.githubusercontent.com/${{ github.repository_owner }}/${{ github.repository }}/export
+
+      - name: Commit export files to the export branch
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git fetch origin export || git checkout --orphan export  # Create export branch if not exists
+          cp -r export/* .
+          git add .
+          git commit -m "Add bundled files for ${matrix.manifest}"
+          git push origin export --force
+
+  # Step 3: Consolidate export files and flatten the export branch
+  consolidate-export:
+    needs: bundle-manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repository and export branch in a separate worktree
+        run: |
+          git fetch origin main
+          git checkout main
+          git fetch origin export || git checkout --orphan export  # Create export branch if it doesn't exist
+          git worktree add ./export export  # Add export branch in a separate directory
+
+      - name: Download export contents
+        run: |
+          cd export
+          git pull origin export
+
+      - name: Run bundler to finalize export
+        run: |
+          npm run bundler -- registry --output export
+
+      - name: Commit export files to the export branch
+        run: |
+          cd export
+          git add .
+          git commit -m "Finalize package registry"
+          git push origin export
+

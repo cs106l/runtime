@@ -220,7 +220,7 @@ function writeRegistry(lang: Language, outputDir: string) {
   }
 
   fs.writeFileSync(path.join(langDir, "registry.json"), JSON.stringify(registry, null, 2));
-} 
+}
 
 /*
  * ============================================================================
@@ -228,11 +228,11 @@ function writeRegistry(lang: Language, outputDir: string) {
  * ============================================================================
  */
 
-function usage() {
+function usage(): never {
   console.log(`Usage: npm run bundler -- <command> [args]
 
 Commands:
-  changed     List changed manifests
+  list        List all or modified manifests
   bundle      Bundles a manifest and outputs the tarball to output_dir
   registry    Build registry file after bundling 
   help        Show this help message
@@ -244,8 +244,15 @@ Commands:
 async function cli() {
   const [, , command] = process.argv;
 
-  if (command === "changed") {
-    console.log(getChangedManifests());
+  if (command === "list") {
+    const { values } = parseArgs({
+      allowPositionals: true,
+      options: {
+        changed: { type: "boolean", default: false },
+      },
+    });
+
+    console.log(values.changed ? getChangedManifests() : findManifestPaths());
     return;
   } else if (command === "bundle") {
     const { positionals, values } = parseArgs({
@@ -256,17 +263,13 @@ async function cli() {
       },
     });
 
-    if (positionals.length !== 2) {
-      console.error("Usage: npm run bundler -- bundle <manifest_path> --output <output_dir>");
-      process.exit(1);
-    }
+    if (positionals.length !== 2)
+      throw new Error("Usage: npm run bundler -- bundle <manifest_path> --output <output_dir>");
 
-    if (!values.source) {
-      console.error(
+    if (!values.source)
+      throw new Error(
         "You must pass --source with the prefix of the URL where bundles will ultimately be located.",
       );
-      process.exit(1);
-    }
 
     bundleManifest(positionals[1], values.output, values.source);
     return;
@@ -275,7 +278,7 @@ async function cli() {
       options: {
         output: { type: "string", default: "export" },
       },
-      allowPositionals: true
+      allowPositionals: true,
     });
 
     for (const lang of Object.values(Language)) {
@@ -285,10 +288,13 @@ async function cli() {
   }
 
   if (command === "help" || !command) usage();
-  console.error(`Invalid command: ${command}`);
-  process.exit(1);
+  throw new Error(`Invalid command: ${command}`);
 }
 
 (async () => {
-  await cli();
+  try {
+    await cli();
+  } catch (e: any) {
+    console.error(e.message ?? e);
+  }
 })();
