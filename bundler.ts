@@ -206,6 +206,22 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   fs.writeFileSync(path.join(langDir, `${manifest.name}.json`), JSON.stringify(meta));
 }
 
+function writeRegistry(lang: Language, outputDir: string) {
+  const langDir = path.join(outputDir, lang);
+  if (!fs.existsSync(langDir)) fs.mkdirSync(langDir, { recursive: true });
+
+  const files = fs.readdirSync(langDir).filter((file) => file.endsWith(".json"));
+  const registry: any[] = [];
+
+  for (const file of files) {
+    const filePath = path.join(langDir, file);
+    const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    registry.push(content);
+  }
+
+  fs.writeFileSync(path.join(langDir, "registry.json"), JSON.stringify(registry, null, 2));
+} 
+
 /*
  * ============================================================================
  * CLI
@@ -218,6 +234,7 @@ function usage() {
 Commands:
   changed     List changed manifests
   bundle      Bundles a manifest and outputs the tarball to output_dir
+  registry    Build registry file after bundling 
   help        Show this help message
 `);
 
@@ -252,6 +269,18 @@ async function cli() {
     }
 
     bundleManifest(positionals[1], values.output, values.source);
+    return;
+  } else if (command === "registry") {
+    const { values } = parseArgs({
+      options: {
+        output: { type: "string", default: "export" },
+      },
+      allowPositionals: true
+    });
+
+    for (const lang of Object.values(Language)) {
+      writeRegistry(lang as Language, values.output);
+    }
     return;
   }
 
