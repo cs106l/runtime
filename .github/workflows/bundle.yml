@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       manifests:
-        description: 'Enter the list of changed manifests (comma-separated)'
+        description: 'Enter a JSON list of changed manifest paths relative to the repo root'
         required: true
         default: ''
 
@@ -35,7 +35,7 @@ jobs:
             changed_manifests=$(npm run bundler -- list --changed)
             echo "Changed manifests: $changed_manifests"
           else
-            changed_manifests="[${{ github.event.inputs.manifests }}]"
+            changed_manifests="${{ github.event.inputs.manifests }}"
             echo "Using manually provided manifests: $changed_manifests"
           fi
           echo "manifests=$changed_manifests" >> $GITHUB_OUTPUT
