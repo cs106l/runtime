@@ -100,9 +100,24 @@ export abstract class PackageRegistry<Lang extends Language> {
   ): ReturnType<PackageManager<Lang>["load"]>;
 }
 
+export type PackageSearchOptions = {
+  /**
+   * Restrict search to these registries
+   */
+  registries?: string[];
+
+  /**
+   * Try to match packages whose `name` matches this pattern.
+   *
+   * **Note:** This is only a suggestion.
+   *  Package registries are free to ignore this if it is inconvient/impossible to implement this query.
+   *  The base registry will always respect this, however.
+   */
+  name?: RegExp;
+};
+
 export class PackageManager<Lang extends Language> {
   registries: readonly PackageRegistry<Lang>[];
-  installed: PackageMeta<Lang>[] = [];
 
   /* Cache of previously resolved packages */
   private resolved = new Map<string, PackageMeta<Lang>>();
@@ -111,8 +126,13 @@ export class PackageManager<Lang extends Language> {
     this.registries = registries;
   }
 
-  async search(name: string): Promise<PackageMeta<Lang>[]> {
-    const all = await Promise.all(this.registries.map((r) => r.search(name)));
+  async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta<Lang>[]> {
+    options ??= {};
+    const all = await Promise.all(
+      this.registries
+        .filter((r) => options.registries?.includes(r.name) ?? true)
+        .map((r) => r.search(label, options)),
+    );
     console.assert(
       !all.some((packages, idx) => packages.some((p) => p.registry !== this.registries[idx].name)),
       "PackageMeta must have same registry name as registry from which it originates",
@@ -120,23 +140,7 @@ export class PackageManager<Lang extends Language> {
     return all.flat();
   }
 
-  async fs(): Promise<WASIFS> {
-    const fsList = await Promise.all(this.installed.map((meta) => this.load(meta)));
-    return Object.assign({}, ...fsList);
-  }
-
-  async install(name: string | PackageMeta<Lang>): Promise<PackageMeta<Lang>> {
-    const meta = typeof name === "string" ? await this.resolve(name) : name;
-    const existing = this.installed.find((m) => m.name === meta.name);
-    if (existing) return existing;
-    this.installed.push(meta);
-
-    // Install dependencies recursively
-    if (meta.dependencies) await Promise.all(meta.dependencies.map((dep) => this.install(dep)));
-    return meta;
-  }
-
-  private async resolve(name: string): Promise<PackageMeta<Lang>> {
+  async resolve(name: string): Promise<PackageMeta<Lang>> {
     if (this.resolved.has(name)) return this.resolved.get(name)!;
 
     const results = await Promise.allSettled(this.registries.map((r) => r.resolve(name)));
@@ -158,9 +162,35 @@ export class PackageManager<Lang extends Language> {
     throw new PackageNotFoundError(name);
   }
 
-  private async load(meta: PackageMeta<Lang>): Promise<WASIFS> {
+  async load(meta: PackageMeta<Lang>): Promise<WASIFS> {
     const registry = this.registries.find((r) => r.name === meta.registry);
     if (!registry) throw new PackageNotFoundError(`No such registry: ${meta.registry}`);
     return registry.load(meta);
+  }
+
+  createWorkspace(): PackageWorkspace<Lang> {
+    return new PackageWorkspace(this);
+  }
+}
+
+export class PackageWorkspace<Lang extends Language> {
+  installed: PackageMeta<Lang>[] = [];
+
+  constructor(private manager: PackageManager<Lang>) {}
+
+  async install(name: string | PackageMeta<Lang>): Promise<PackageMeta<Lang>> {
+    const meta = typeof name === "string" ? await this.manager.resolve(name) : name;
+    const existing = this.installed.find((m) => m.name === meta.name);
+    if (existing) return existing;
+    this.installed.push(meta);
+
+    // Install dependencies recursively
+    if (meta.dependencies) await Promise.all(meta.dependencies.map((dep) => this.install(dep)));
+    return meta;
+  }
+
+  async build(): Promise<WASIFS> {
+    const fsList = await Promise.all(this.installed.map((meta) => this.manager.load(meta)));
+    return Object.assign({}, ...fsList);
   }
 }

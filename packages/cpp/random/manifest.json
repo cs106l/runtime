@@ -1,6 +1,6 @@
 {
-    "name": "random",
-    "runtime": {
-        "prefixFile": "hello.cpp"
-    }
+  "name": "random",
+  "runtime": {
+    "prefixFile": "hello.cpp"
+  }
 }

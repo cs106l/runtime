@@ -15,6 +15,7 @@
   },
   "homepage": "https://github.com/cs106l/runtime#readme",
   "dependencies": {
+    "@runno/runtime": "^0.7.0",
     "@runno/wasi": "^0.7.0",
     "zod": "^3.24.2"
   },

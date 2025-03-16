@@ -30,7 +30,7 @@ function ManifestSchema<Lang extends Language>(lang: Lang) {
     .extend({
       /**
        * Path to the directory that will become the package root in the virtual filesystem.
-       * This path is relative to the package dir (i.e. the dir where this schema lives).
+       * This path is relative to the package dir (i.e. the dir where this manifest lives).
        * @default "."
        */
       rootDir: z.string().optional(),
@@ -56,13 +56,13 @@ function ManifestSchema<Lang extends Language>(lang: Lang) {
         .unwrap()
         .extend({
           /**
-           * A path, relative to the package dir, to a file whose
+           * A path, relative to `rootDir`, to a file whose
            * contents should be included **before** the executing program
            */
           prefixFile: z.string().optional(),
 
           /**
-           * A path, relative to the package dir, to a file whose
+           * A path, relative to `rootDir`, to a file whose
            * contents should be included **after** the executing program
            *
            * This can be useful for creating test-harness packages ("runners").
@@ -179,7 +179,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
       file: path.join(langDir, `${manifest.name}.tar.gz`),
       prefix: packagePrefix,
       noDirRecurse: true,
-      portable: true
+      portable: true,
     },
     files,
   );

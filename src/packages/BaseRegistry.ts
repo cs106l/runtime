@@ -1,23 +1,57 @@
 import { Language } from "..";
-import { PackageMeta, PackageRegistry } from ".";
+import { PackageMeta, PackageNotFoundError, PackageRegistry, PackageSearchOptions } from ".";
 import type { WASIFS } from "@runno/wasi";
+import { fetchWASIFS } from "@runno/runtime";
 
-export const BaseRegistryName: string = "base"; 
+export const BaseRegistryName: string = "base";
 
 export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
+  private _registry?: PackageMeta<Lang>[];
+
+  constructor(private language: Lang) {
+    super();
+  }
+
   get name(): string {
     return BaseRegistryName;
   }
 
-  search(name: string): Promise<PackageMeta<Lang>[]> {
-    throw new Error("Method not implemented.");
+  async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta<Lang>[]> {
+    const registry = await this.fetchRegistry();
+    const packages = registry
+      .filter((p) => {
+        if (!label) return true;
+        const packageLabel = p.label ?? p.name;
+        return packageLabel.toLocaleLowerCase().includes(label.toLocaleLowerCase());
+      })
+      .filter((p) => {
+        if (!options?.name) return true;
+        return options.name.test(p.name);
+      });
+    return packages;
   }
 
-  resolve(name: string): Promise<PackageMeta<Lang>> {
-    throw new Error("Method not implemented.");
+  async resolve(name: string): Promise<PackageMeta<Lang>> {
+    const registry = await this.fetchRegistry();
+    const meta = registry.find((p) => p.name === name);
+    if (!meta) throw new PackageNotFoundError(name);
+    return meta;
   }
 
   load(meta: PackageMeta<Lang>): Promise<WASIFS> {
-    throw new Error("Method not implemented.");
+    return fetchWASIFS(meta.source);
+  }
+
+  private async fetchRegistry(): Promise<NonNullable<typeof this._registry>> {
+    if (this._registry) return this._registry;
+    const registryUrl = `https://raw.githubusercontent.com/cs106l/runtime/dist/${this.language}/registry.json`;
+    const res = await fetch(registryUrl);
+    if (!res.ok) {
+      if (res.status === 404) this._registry = [];
+      throw new Error(`Failed to fetch package registry: ${res.statusText}`);
+    } else {
+      this._registry = await res.json();
+    }
+    return this._registry!;
   }
 }
