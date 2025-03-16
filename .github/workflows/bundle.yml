@@ -13,13 +13,14 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: 'true'  # Pull submodules as well
+          fetch-depth: 2
 
       - uses: actions/setup-node@v4
         with:
           node-version: '23.x'
       - run: npm ci
 
-      - name: Run bundler to list changed manifests
+      - name: Identify changed manifests
         run: |
           changed_manifests=$(npm run bundler -- list --changed)
           echo "Changed manifests: $changed_manifests"
