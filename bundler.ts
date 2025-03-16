@@ -211,7 +211,9 @@ function writeRegistry(lang: Language, outputDir: string) {
   const langDir = path.join(outputDir, lang);
   if (!fs.existsSync(langDir)) fs.mkdirSync(langDir, { recursive: true });
 
-  const files = fs.readdirSync(langDir).filter((file) => file.endsWith(".json"));
+  const files = fs
+    .readdirSync(langDir)
+    .filter((file) => file.endsWith(".json") && file !== "registry.json");
   const registry: any[] = [];
 
   for (const file of files) {

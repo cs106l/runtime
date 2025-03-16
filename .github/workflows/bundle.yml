@@ -109,3 +109,10 @@ jobs:
           git commit -m "Finalized package registry"
           git push origin export --force
 
+      - name: Flatten history
+        run: |
+          git reset $(git rev-list --max-parents=0 HEAD)
+          git add .
+          git commit -m "Registry published"
+          git push origin export --force
+
