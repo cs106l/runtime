@@ -66,7 +66,7 @@ jobs:
 
       - name: Commit export files to the deploy branch
         run: |
-          git fetch origin ${{ vars.deploy_branch }}
+          git fetch origin ${{ vars.deploy_branch }} || true
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           (git checkout origin/${{ vars.deploy_branch }} && git branch ${{ vars.deploy_branch }} && git checkout ${{ vars.deploy_branch }}) || (git checkout --orphan ${{ vars.deploy_branch }} && git reset --hard)
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Checkout deploy branch in a separate worktree
         run: |
-          git fetch origin ${{ vars.deploy_branch }}
+          git fetch origin ${{ vars.deploy_branch }} || true
           git worktree add export-stage ${{ vars.deploy_branch }} || true
           mv export-stage export
           (git worktree remove export-stage && git branch -D ${{ vars.deploy_branch }}) || true
