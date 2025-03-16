@@ -62,7 +62,7 @@ jobs:
 
       - name: Run bundler to create export for manifest
         run: |
-          npm run bundler -- bundle ${{ matrix.manifest }} --output export --source https://raw.githubusercontent.com/${{ github.repository_owner }}/${{ github.repository }}/export
+          npm run bundler -- bundle ${{ matrix.manifest }} --output export --source https://raw.githubusercontent.com/${{ github.repository }}/export
 
       - name: Commit export files to the export branch
         run: |
