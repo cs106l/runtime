@@ -1,5 +1,5 @@
 import { Language } from "..";
-import { PackageMeta, PackageRegistry } from "./packages";
+import { PackageMeta, PackageRegistry } from ".";
 import type { WASIFS } from "@runno/wasi";
 
 export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {

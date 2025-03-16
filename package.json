@@ -1,8 +1,9 @@
 {
-  "name": "runtime",
+  "name": "@cs106l/runtime",
   "version": "1.0.0",
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "scripts": {
+    "bundler": "npx ts-node bundler.ts",
     "format": "npx prettier . --write --config .prettierrc"
   },
   "repository": {
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.2"
   }
 }

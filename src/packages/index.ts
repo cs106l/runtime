@@ -58,7 +58,7 @@ export function PackageMetaSchema<Lang extends Language>(language: Lang) {
      * For example, C++ packages might use this to encode compiler/linker flags to ensure the package
      * headers can be included.
      */
-    runtime: CommonRuntimeOptionsSchema.merge(RuntimeLanguageOptionsSchemas[language]),
+    runtime: CommonRuntimeOptionsSchema.merge(RuntimeLanguageOptionsSchemas[language]).optional(),
   });
 }
 
