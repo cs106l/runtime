@@ -75,7 +75,7 @@ jobs:
           git add .
           git commit -m "Add bundled files for ${{ matrix.manifest }}"
           git branch export-stage
-          git checkout origin/export || git checkout --orphan export
+          git checkout origin/export || git checkout export
           git reset --hard export-stage
           git push origin export --force
 
@@ -110,7 +110,7 @@ jobs:
           git add .
           git commit -m "Finalized package registry"
           git branch export-stage
-          git checkout origin/export || git checkout --orphan export
+          git checkout origin/export || git checkout export
           git reset --hard export-stage
           git push origin export --force
 
