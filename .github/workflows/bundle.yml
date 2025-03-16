@@ -71,7 +71,7 @@ jobs:
           git fetch origin export || git checkout --orphan export  # Create export branch if not exists
           cp -r export/* .
           git add .
-          git commit -m "Add bundled files for ${matrix.manifest}"
+          git commit -m "Add bundled files for "${matrix.manifest}
           git push origin export --force
 
   # Step 3: Consolidate export files and flatten the export branch
