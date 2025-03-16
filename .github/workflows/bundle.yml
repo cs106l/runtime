@@ -106,5 +106,8 @@ jobs:
           rm -rf export node_modules
           git add .
           git commit -m "Finalized package registry"
+          git branch temp
+          git checkout export
+          git reset --hard temp
           git push origin export --force
 
