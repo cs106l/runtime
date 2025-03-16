@@ -3,8 +3,6 @@ import { PackageMeta, PackageNotFoundError, PackageRegistry, PackageSearchOption
 import type { WASIFS } from "@runno/wasi";
 import { fetchWASIFS } from "@runno/runtime";
 
-export const BaseRegistryName: string = "base";
-
 export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
   private _registry?: PackageMeta<Lang>[];
 
@@ -13,7 +11,7 @@ export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
   }
 
   get name(): string {
-    return BaseRegistryName;
+    return "base";
   }
 
   async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta<Lang>[]> {

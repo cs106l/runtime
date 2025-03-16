@@ -13,7 +13,6 @@ import { parseArgs } from "util";
 
 import glob from "fast-glob";
 import { create as createTar } from "tar";
-import { BaseRegistryName } from "src/packages/BaseRegistry";
 
 const PackagesDir = "packages";
 const ManifestFiles = ["manifest.json", "manifest.ts"];
@@ -191,7 +190,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
     label: manifest.label,
     description: manifest.description,
     version: manifest.version,
-    registry: BaseRegistryName,
+    registry: "base",
     source: `${sourceUrl}/${lang}/${manifest.name}.tar.gz`,
     dependencies: manifest.dependencies,
     runtime: manifest.runtime
