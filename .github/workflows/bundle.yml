@@ -68,15 +68,11 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git checkout origin/export || git checkout --orphan export
-          git reset --hard
+          (git checkout origin/export && git branch export && git checkout export) || (git checkout --orphan export && git reset --hard && rm -rf node_modules)
           cp -r export/* .
-          rm -rf export node_modules
-          git branch export-stage
+          rm -rf export
           git add .
           git commit -m "Add bundled files for ${{ matrix.manifest }}"
-          git checkout origin/export || git checkout export
-          git reset --hard export-stage
           git push origin export --force
 
   # Step 3: Finalize the package registry
@@ -103,14 +99,10 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git checkout origin/export || git checkout --orphan export
-          git reset --hard
+          (git checkout origin/export && git branch export && git checkout export) || (git checkout --orphan export && git reset --hard && rm -rf node_modules)
           cp -r export/* .
-          rm -rf export node_modules
-          git branch export-stage
+          rm -rf export
           git add .
           git commit -m "Finalized package registry"
-          git checkout origin/export || git checkout export
-          git reset --hard export-stage
           git push origin export --force
 
