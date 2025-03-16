@@ -86,7 +86,7 @@ jobs:
           git fetch
           git worktree add export-stage export || true
           mv export-stage export
-          git worktree remove export-stage || true
+          (git worktree remove export-stage && git branch -D export) || true
 
       - uses: actions/setup-node@v4
         with:
