@@ -20,6 +20,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
+    "fast-glob": "^3.3.3",
+    "tar": "^7.4.3",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.2"
   }

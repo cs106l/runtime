@@ -4,12 +4,16 @@
 
 import { z } from "zod";
 import { Language } from "src";
-import { PackageMetaSchema } from "src/packages";
+import { PackageMeta, PackageMetaSchema } from "src/packages";
 
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import { parseArgs } from "util";
+
+import glob from "fast-glob";
+import { create as createTar } from "tar";
+import { BaseRegistryName } from "src/packages/BaseRegistry";
 
 const PackagesDir = "packages";
 const ManifestFiles = ["manifest.json", "manifest.ts"];
@@ -100,9 +104,7 @@ function getChangedManifests(): string[] {
   });
 }
 
-async function loadManifest(manifestPath: string): Promise<Manifest<Language>> {
-  if (!fs.existsSync(manifestPath)) throw new Error(`No such file: ${manifestPath}`);
-
+function getManifestLanguage(manifestPath: string): Language {
   /* Get the manifest language by inspecting the path */
   const relPath = path.relative(PackagesDir, manifestPath);
   const rawLang = relPath.split(path.sep)[0];
@@ -114,9 +116,14 @@ async function loadManifest(manifestPath: string): Promise<Manifest<Language>> {
         Language.Cpp,
       )}?`,
     );
+  return lang.data;
+}
 
-  /* Load the manifest */
-  const schema = ManifestSchema(lang.data);
+async function loadManifest(manifestPath: string): Promise<Manifest<Language>> {
+  if (!fs.existsSync(manifestPath)) throw new Error(`No such file: ${manifestPath}`);
+
+  const lang = getManifestLanguage(manifestPath);
+  const schema = ManifestSchema(lang);
 
   let rawManifest: unknown;
 
@@ -143,7 +150,61 @@ async function loadManifest(manifestPath: string): Promise<Manifest<Language>> {
   return manifest.data;
 }
 
-async function bundleManifest(manifest: Manifest<Language>, outputDir: string) {}
+async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl: string) {
+  const cwd = path.dirname(manifestPath);
+  const manifest = await loadManifest(manifestPath);
+
+  /* Run build hook if needed */
+  if (manifest.build) execSync(manifest.build, { cwd });
+
+  /* Glob package files and tar */
+  const files = await glob(manifest.files ?? "**/*", {
+    cwd,
+    ignore: [path.relative(cwd, manifestPath)],
+  });
+
+  files.push("."); // Ensures empty directories can be tarred
+
+  const packagePrefix = `/packages/${manifest.name}`;
+  const lang = getManifestLanguage(manifestPath);
+  const langDir = path.join(outputDir, lang);
+
+  if (!fs.existsSync(langDir)) fs.mkdirSync(langDir, { recursive: true });
+
+  await createTar(
+    {
+      cwd,
+      gzip: true,
+      file: path.join(langDir, `${manifest.name}.tar.gz`),
+      prefix: packagePrefix,
+      noDirRecurse: true,
+      portable: true,
+      preservePaths: true,
+    },
+    files,
+  );
+
+  const { prefixFile, postfixFile, ...runtime } = manifest.runtime ?? {};
+
+  const meta: PackageMeta<Language> = {
+    name: manifest.name,
+    label: manifest.label,
+    description: manifest.description,
+    version: manifest.version,
+    registry: BaseRegistryName,
+    source: `${sourceUrl}/${lang}/${manifest.name}.tar.gz`,
+    dependencies: manifest.dependencies,
+    runtime: manifest.runtime
+      ? {
+          prefixFile: prefixFile ? path.join(packagePrefix, prefixFile) : undefined,
+          postfixFile: postfixFile ? path.join(packagePrefix, postfixFile) : undefined,
+          ...runtime,
+        }
+      : undefined,
+  };
+
+  fs.writeFileSync(path.join(langDir, `${manifest.name}.json`), JSON.stringify(meta));
+}
 
 /*
  * ============================================================================
@@ -174,17 +235,23 @@ async function cli() {
       allowPositionals: true,
       options: {
         output: { type: "string", default: "export" },
+        source: { type: "string" },
       },
     });
 
     if (positionals.length !== 2) {
-      console.error("Usage: npm run bundler bundle <manifest_path> --output <output_dir>");
+      console.error("Usage: npm run bundler -- bundle <manifest_path> --output <output_dir>");
       process.exit(1);
     }
 
-    const manifestPath = positionals[1];
-    const manifest = await loadManifest(manifestPath);
-    bundleManifest(manifest, values.output);
+    if (!values.source) {
+      console.error(
+        "You must pass --source with the prefix of the URL where bundles will ultimately be located.",
+      );
+      process.exit(1);
+    }
+
+    bundleManifest(positionals[1], values.output, values.source);
     return;
   }
 

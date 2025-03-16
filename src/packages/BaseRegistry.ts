@@ -2,9 +2,11 @@ import { Language } from "..";
 import { PackageMeta, PackageRegistry } from ".";
 import type { WASIFS } from "@runno/wasi";
 
+export const BaseRegistryName: string = "base"; 
+
 export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
   get name(): string {
-    return "base";
+    return BaseRegistryName;
   }
 
   search(name: string): Promise<PackageMeta<Lang>[]> {
