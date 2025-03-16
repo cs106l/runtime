@@ -66,7 +66,7 @@ jobs:
 
       - name: Commit export files to the export branch
         run: |
-          git fetch
+          git fetch origin export
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           (git checkout origin/export && git branch export && git checkout export) || (git checkout --orphan export && git reset --hard)
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Checkout export branch in a separate worktree
         run: |
-          git fetch
+          git fetch origin export
           git worktree add export-stage export || true
           mv export-stage export
           (git worktree remove export-stage && git branch -D export) || true

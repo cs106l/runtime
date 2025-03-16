@@ -1,0 +1,6 @@
+{
+    "name": "random",
+    "runtime": {
+        "prefixFile": "hello.cpp"
+    }
+}

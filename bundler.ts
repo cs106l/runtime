@@ -41,7 +41,7 @@ function ManifestSchema<Lang extends Language>(lang: Lang) {
        * file, directory, or glob pattern (*, **\/*, and such) will make it so that
        * file is included in the tarball when it's packed.
        *
-       * These paths/globs are relative to this package dir. The package manifest will
+       * These paths/globs are relative to the `rootDir`. The package manifest will
        * never be included.
        */
       files: z.string().array().optional(),
@@ -179,8 +179,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
       file: path.join(langDir, `${manifest.name}.tar.gz`),
       prefix: packagePrefix,
       noDirRecurse: true,
-      portable: true,
-      preservePaths: true,
+      portable: true
     },
     files,
   );
