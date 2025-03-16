@@ -31,7 +31,7 @@ jobs:
       - name: Identify changed manifests
         id: changed
         run: |
-          if [ -z "${{ github.event.inputs.manifests }}" ]; then
+          if [ -z '${{ github.event.inputs.manifests }}' ]; then
             changed_manifests=$(npm run bundler -- list --changed)
             echo "Changed manifests: $changed_manifests"
           else
