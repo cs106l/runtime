@@ -94,6 +94,7 @@ jobs:
       - name: Finalize package registry
         run: |
           npm run bundler -- registry --output export
+          git worktree remove export
 
       - name: Commit registry to the export branch
         run: |
