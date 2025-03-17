@@ -1,0 +1,3 @@
+[submodule "packages/cpp/stanford-cpp-library/src"]
+	path = packages/cpp/stanford-cpp-library/src
+	url = https://github.com/zelenski/stanford-cpp-library
