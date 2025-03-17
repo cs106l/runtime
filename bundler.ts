@@ -29,6 +29,12 @@ const ManifestSchema = PackageMetaSchema.omit({
   source: true, // Will be manually set
 }).extend({
   /**
+   * A marker for when this package was bundled.
+   * Increment this number to trigger a rebuild/publish via CI on next commit.
+   */
+  build: z.number(),
+
+  /**
    * Path to the directory that will become the package root in the virtual filesystem.
    * This path is relative to the package dir (i.e. the dir where this manifest lives).
    * @default "."
@@ -50,7 +56,7 @@ const ManifestSchema = PackageMetaSchema.omit({
    * An optional command to run before packing the tarball for the package.
    * The command will be run in the package directory.
    */
-  build: z.string().optional(),
+  run: z.string().optional(),
 
   runtime: LanguagesRuntimeSchema.and(
     BaseRuntimeSchema.extend({
@@ -86,18 +92,57 @@ function findManifestPaths(dir: string = PackagesDir): string[] {
   return manifests;
 }
 
-function getChangedManifests(): string[] {
-  const manifests = findManifestPaths();
+function getGitHubInfo() {
+  const remoteUrl = execSync("git config --get remote.origin.url").toString().trim();
+  const match = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+  if (!match) throw new Error(`Invalid GitHub remote URL: ${remoteUrl}`);
+  const [, org, repo] = match;
+  return { org, repo };
+}
 
-  return manifests.filter((manifest) => {
-    const dir = path.join(manifest, "..");
-    try {
-      const changedFiles = execSync(`git diff --name-only HEAD~1 HEAD -- ${dir}`).toString().trim();
-      return changedFiles.length > 0;
-    } catch {
-      return false;
+const { org, repo } = getGitHubInfo();
+const registryCache = new Map<Language, PackageMeta[]>();
+
+async function fetchPackageRegistry(language: Language): Promise<PackageMeta[]> {
+  if (registryCache.has(language)) return registryCache.get(language)!;
+
+  const url = `https://raw.githubusercontent.com/${org}/${repo}/${language}/registry.json`;
+
+  try {
+    const res = await fetch(url);
+    if (res.status === 404) {
+      registryCache.set(language, []);
+      return [];
     }
-  });
+
+    if (!res.ok) throw new Error(`Failed to fetch registry: ${res.status} ${res.statusText}`);
+
+    const data: PackageMeta[] = await res.json();
+    registryCache.set(language, data);
+    return data;
+  } catch (err) {
+    console.error(`Error fetching registry for ${language}:`, err);
+    throw err;
+  }
+}
+
+async function getPublishedBuildVersion(language: Language, manifest: Manifest): Promise<number> {
+  const registry = await fetchPackageRegistry(language);
+  const meta = registry.find((meta) => meta.name === manifest.name);
+  return (meta as any)?.build ?? -1;
+}
+
+async function hasManifestChanged(manifestPath: string): Promise<boolean> {
+  const language = getManifestLanguage(manifestPath);
+  const manifest = await loadManifest(manifestPath);
+  const publishedBuild = await getPublishedBuildVersion(language, manifest);
+  return manifest.build > publishedBuild;
+}
+
+async function getChangedManifests(): Promise<string[]> {
+  const manifests = findManifestPaths();
+  const changed = await Promise.all(manifests.map(hasManifestChanged));
+  return manifests.filter((_, i) => changed[i]);
 }
 
 function getManifestLanguage(manifestPath: string): Language {
@@ -148,7 +193,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   const manifest = await loadManifest(manifestPath);
 
   /* Run build hook if needed */
-  if (manifest.build) execSync(manifest.build, { cwd: packageDir });
+  if (manifest.run) execSync(manifest.run, { cwd: packageDir });
 
   /* Glob package files and tar */
   const cwd = path.join(packageDir, manifest.rootDir ?? ".");
@@ -196,7 +241,12 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
       : undefined,
   };
 
-  fs.writeFileSync(path.join(langDir, `${manifest.name}.json`), JSON.stringify(meta));
+  /* The build number is not part of the PackageMeta,
+   * but we include it so that CI can determine when to re-build */
+  fs.writeFileSync(
+    path.join(langDir, `${manifest.name}.json`),
+    JSON.stringify({ build: manifest.build, ...meta }),
+  );
 }
 
 function writeRegistry(lang: Language, outputDir: string) {
@@ -247,7 +297,7 @@ async function cli() {
       },
     });
 
-    const json = JSON.stringify(values.changed ? getChangedManifests() : findManifestPaths());
+    const json = JSON.stringify(values.changed ? await getChangedManifests() : findManifestPaths());
     console.log(json);
     return;
   } else if (command === "bundle") {

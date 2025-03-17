@@ -2,5 +2,6 @@
   "name": "stanford-cpp-library",
   "label": "Stanford Libraries",
   "description": "The Stanford CS106B libraries",
-  "version": "2.2.1"
+  "version": "2.2.1",
+  "build": 0
 }

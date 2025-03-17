@@ -2,6 +2,7 @@
   "name": "random",
   "description": "Utilities for random number generation",
   "version": "0.1.1",
+  "build": 0,
   "runtime": {
     "prefixFile": "hello.cpp"
   }
