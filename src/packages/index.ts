@@ -1,74 +1,67 @@
 import type { WASIFS } from "@runno/wasi";
 import { Language } from "..";
-import { z } from "zod";
 import { SignalOptions } from "../utils";
 
-export type PackageMeta<Lang extends Language> = z.infer<
-  ReturnType<typeof PackageMetaSchema<Lang>>
->;
+export type PackageMeta<Lang extends Language> = {
+  /**
+   * The name of the package
+   *
+   * This is an unambiguous, unique identifier for the package across **all** registries.
+   */
+  name: string;
 
-export function PackageMetaSchema<Lang extends Language>(language: Lang) {
-  return z.object({
-    /**
-     * The name of the package
-     *
-     * This is an unambiguous, unique identifier for the package across **all** registries.
-     */
-    name: z.string(),
+  /**
+   * The name of the package as it should be shown to the end user
+   * @default name
+   */
+  label?: string;
 
-    /**
-     * The name of the package as it should be shown to the end user
-     * @default name
-     */
-    label: z.string().optional(),
+  /**
+   * A short, one-sentence description of the package that can be shown to the end user
+   */
+  description?: string;
 
-    /**
-     * A short, one-sentence description of the package that can be shown to the end user
-     */
-    description: z.string().optional(),
+  /**
+   * The package version, using [semantic versioning](https://semver.org/)
+   *
+   * Currently, this version string is purely informative and does not participate in package resolution.
+   */
+  version?: string;
 
-    /**
-     * The package version, using [semantic versioning](https://semver.org/)
-     *
-     * Currently, this version string is purely informative and does not participate in package resolution.
-     */
-    version: z.string().optional(),
+  /**
+   * Which package registry to load the package from
+   */
+  registry: string;
 
-    /**
-     * Which package registry to load the package from
-     */
-    registry: z.string(),
+  /**
+   * Where the package can be found
+   *
+   * There are no hard requirements on the contents of this string--package registries will use this internally
+   * to load packages into the virtual filesystem. For example, this might be a URL to a tarball.
+   */
+  source: string;
 
-    /**
-     * Where the package can be found
-     *
-     * There are no hard requirements on the contents of this string--package registries will use this internally
-     * to load packages into the virtual filesystem. For example, this might be a URL to a tarball.
-     */
-    source: z.string(),
+  /**
+   * A list of packages that should be installed first for this package to be functional
+   * @default []
+   */
+  dependencies?: string[];
 
-    /**
-     * A list of packages that should be installed first for this package to be functional
-     * @default []
-     */
-    dependencies: z.string().array().optional(),
+  /**
+   * Runtime information that is common across all languages.
+   */
+  runtime?: RuntimeOptions<Lang>;
+};
 
-    /**
-     * Language-specific runtime information needed to use this package
-     *
-     * For example, C++ packages might use this to encode compiler/linker flags to ensure the package
-     * headers can be included.
-     */
-    runtime: CommonRuntimeOptionsSchema.and(RuntimeLanguageOptionsSchemas[language]).optional(),
-  });
-}
+export type RuntimeOptions<Lang extends Language> = CommonRuntimeOptions &
+  RuntimeLanguageOptions[Lang];
 
-export const CommonRuntimeOptionsSchema = z.object({
+type CommonRuntimeOptions = {
   /**
    * A path, relative to the virtual file system root, to a file whose
    * contents should be included **before** the executing program
    */
-  prefixFile: z.string().optional(),
+  prefixFile?: string;
 
   /**
    * A path, relative to the virtual file system root, to a file whose
@@ -76,12 +69,12 @@ export const CommonRuntimeOptionsSchema = z.object({
    *
    * This can be useful for creating test-harness packages ("runners").
    */
-  postfixFile: z.string().optional(),
-});
+  postfixFile?: string;
+};
 
-export const RuntimeLanguageOptionsSchemas = {
-  [Language.Python]: z.object({}),
-  [Language.Cpp]: z.object({}),
+type RuntimeLanguageOptions = {
+  [Language.Python]: {};
+  [Language.Cpp]: {};
 };
 
 export class PackageNotFoundError extends Error {}

@@ -4,7 +4,9 @@
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "npx tsc",
     "bundler": "npx ts-node bundler.ts",
@@ -27,8 +29,7 @@
   "dependencies": {
     "@obsidize/tar-browserify": "^5.2.0",
     "@runno/wasi": "^0.7.0",
-    "pako": "^2.1.0",
-    "zod": "^3.24.2"
+    "pako": "^2.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
