@@ -1,9 +1,10 @@
 {
   "name": "@cs106l/runtime",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": ["dist"],
   "scripts": {
     "build": "npx tsc",
     "bundler": "npx ts-node bundler.ts",
