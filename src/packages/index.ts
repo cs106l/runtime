@@ -1,7 +1,7 @@
 import type { WASIFS } from "@runno/wasi";
 import { Language } from "..";
 import { z } from "zod";
-import { SignalOptions } from "src/utils";
+import { SignalOptions } from "../utils";
 
 export type PackageMeta<Lang extends Language> = z.infer<
   ReturnType<typeof PackageMetaSchema<Lang>>

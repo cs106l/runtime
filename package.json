@@ -1,14 +1,22 @@
 {
   "name": "@cs106l/runtime",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A simple WebAssembly runtime and package manager for the browser",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
+    "build": "npx tsc",
     "bundler": "npx ts-node bundler.ts",
     "format": "npx prettier . --write --config .prettierrc"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cs106l/runtime.git"
+  },
+  "author": {
+    "name": "jacobrobertsbaca",
+    "email": "jacobrobertsbaca@gmail.com",
+    "url": "https://github.com/jacobrobertsbaca"
   },
   "bugs": {
     "url": "https://github.com/cs106l/runtime/issues"
@@ -25,7 +33,6 @@
     "@types/pako": "^2.0.3",
     "fast-glob": "^3.3.3",
     "tar": "^7.4.3",
-    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.2"
   }
 }

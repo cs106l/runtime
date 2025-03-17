@@ -1,7 +1,7 @@
-import { BaseRegistry } from "src/packages/BaseRegistry";
-import { LanguageConfiguration, RunStatus } from ".";
-import { Language } from "..";
-import { PackageManager } from "src/packages";
+import { BaseRegistry } from "../packages/BaseRegistry";
+import type { LanguageConfiguration } from ".";
+import { Language, RunStatus } from "..";
+import { PackageManager } from "../packages";
 
 const Cpp: LanguageConfiguration<Language.Cpp> = {
   language: Language.Cpp,

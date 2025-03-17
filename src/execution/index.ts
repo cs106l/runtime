@@ -1,14 +1,14 @@
 import {
-  WASIExecutionResult,
-  WASIFile,
-  WASIFS,
+  type WASIExecutionResult,
+  type WASIFile,
+  type WASIFS,
   WASIWorkerHost,
   WASIWorkerHostKilledError,
 } from "@runno/wasi";
-import { Language } from "..";
-import { PackageList, PackageManager, PackageWorkspace } from "src/packages";
+import { Language, RunStatus, PackageManager } from "..";
+import type { PackageList, PackageWorkspace } from "..";
 import { LanguagesConfig } from "./languages";
-import { fetchWASIFS } from "src/utils";
+import { fetchWASIFS } from "../utils";
 
 /*
  * ============================================================================
@@ -70,13 +70,6 @@ export type LanguageConfiguration<Lang extends Language> = {
  * Code execution
  * ============================================================================
  */
-
-export enum RunStatus {
-  Installing,
-  Compiling,
-  Linking,
-  Running,
-}
 
 export type WriteFn = (data: string) => void;
 

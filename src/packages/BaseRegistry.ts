@@ -1,7 +1,7 @@
 import { Language } from "..";
 import { PackageMeta, PackageNotFoundError, PackageRegistry, PackageSearchOptions } from ".";
 import type { WASIFS } from "@runno/wasi";
-import { fetchWASIFS, SignalOptions } from "src/utils";
+import { fetchWASIFS, SignalOptions } from "../utils";
 
 export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
   private _registry?: PackageMeta<Lang>[];

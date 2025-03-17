@@ -3,13 +3,13 @@
  */
 
 import { z } from "zod";
-import { Language } from "src";
 import {
+  Language,
   CommonRuntimeOptionsSchema,
   PackageMeta,
   PackageMetaSchema,
   RuntimeLanguageOptionsSchemas,
-} from "src/packages";
+} from "./src";
 
 import fs from "fs";
 import path from "path";
@@ -20,7 +20,7 @@ import glob from "fast-glob";
 import { create as createTar } from "tar";
 
 const PackagesDir = "packages";
-const ManifestFiles = ["manifest.json", "manifest.ts"];
+const ManifestFiles = ["manifest.json", "manifest.ts", "manifest.js"];
 
 export type Manifest<Lang extends Language> = z.infer<ReturnType<typeof ManifestSchema<Lang>>>;
 
