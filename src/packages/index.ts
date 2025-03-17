@@ -1,97 +1,21 @@
 import type { WASIFS } from "@runno/wasi";
 import { Language } from "..";
 import { SignalOptions } from "../utils";
-
-export type PackageMeta<Lang extends Language> = {
-  /**
-   * The name of the package
-   *
-   * This is an unambiguous, unique identifier for the package across **all** registries.
-   */
-  name: string;
-
-  /**
-   * The name of the package as it should be shown to the end user
-   * @default name
-   */
-  label?: string;
-
-  /**
-   * A short, one-sentence description of the package that can be shown to the end user
-   */
-  description?: string;
-
-  /**
-   * The package version, using [semantic versioning](https://semver.org/)
-   *
-   * Currently, this version string is purely informative and does not participate in package resolution.
-   */
-  version?: string;
-
-  /**
-   * Which package registry to load the package from
-   */
-  registry: string;
-
-  /**
-   * Where the package can be found
-   *
-   * There are no hard requirements on the contents of this string--package registries will use this internally
-   * to load packages into the virtual filesystem. For example, this might be a URL to a tarball.
-   */
-  source: string;
-
-  /**
-   * A list of packages that should be installed first for this package to be functional
-   * @default []
-   */
-  dependencies?: string[];
-
-  /**
-   * Runtime information that is common across all languages.
-   */
-  runtime?: RuntimeOptions<Lang>;
-};
-
-export type RuntimeOptions<Lang extends Language> = CommonRuntimeOptions &
-  RuntimeLanguageOptions[Lang];
-
-type CommonRuntimeOptions = {
-  /**
-   * A path, relative to the virtual file system root, to a file whose
-   * contents should be included **before** the executing program
-   */
-  prefixFile?: string;
-
-  /**
-   * A path, relative to the virtual file system root, to a file whose
-   * contents should be included **after** the executing program
-   *
-   * This can be useful for creating test-harness packages ("runners").
-   */
-  postfixFile?: string;
-};
-
-type RuntimeLanguageOptions = {
-  [Language.Python]: {};
-  [Language.Cpp]: {};
-};
+import { PackageMeta } from "./schema";
 
 export class PackageNotFoundError extends Error {}
 
-export abstract class PackageRegistry<Lang extends Language> {
+export abstract class PackageRegistry {
   abstract get name(): string;
   abstract search(
-    ...args: Parameters<PackageManager<Lang>["search"]>
-  ): ReturnType<PackageManager<Lang>["search"]>;
+    ...args: Parameters<PackageManager["search"]>
+  ): ReturnType<PackageManager["search"]>;
 
   abstract resolve(
-    ...args: Parameters<PackageManager<Lang>["resolve"]>
-  ): ReturnType<PackageManager<Lang>["resolve"]>;
+    ...args: Parameters<PackageManager["resolve"]>
+  ): ReturnType<PackageManager["resolve"]>;
 
-  abstract load(
-    ...args: Parameters<PackageManager<Lang>["load"]>
-  ): ReturnType<PackageManager<Lang>["load"]>;
+  abstract load(...args: Parameters<PackageManager["load"]>): ReturnType<PackageManager["load"]>;
 }
 
 export type PackageSearchOptions = {
@@ -110,17 +34,17 @@ export type PackageSearchOptions = {
   name?: RegExp;
 };
 
-export class PackageManager<Lang extends Language> {
-  registries: readonly PackageRegistry<Lang>[];
+export class PackageManager {
+  registries: readonly PackageRegistry[];
 
   /* Cache of previously resolved packages */
-  private resolved = new Map<string, PackageMeta<Lang>>();
+  private resolved = new Map<string, PackageMeta>();
 
-  constructor(...registries: PackageRegistry<Lang>[]) {
+  constructor(...registries: PackageRegistry[]) {
     this.registries = registries;
   }
 
-  async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta<Lang>[]> {
+  async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta[]> {
     options ??= {};
     const all = await Promise.all(
       this.registries
@@ -134,7 +58,7 @@ export class PackageManager<Lang extends Language> {
     return all.flat();
   }
 
-  async resolve(name: string): Promise<PackageMeta<Lang>> {
+  async resolve(name: string): Promise<PackageMeta> {
     if (this.resolved.has(name)) return this.resolved.get(name)!;
 
     const results = await Promise.allSettled(this.registries.map((r) => r.resolve(name)));
@@ -156,29 +80,29 @@ export class PackageManager<Lang extends Language> {
     throw new PackageNotFoundError(name);
   }
 
-  async load(meta: PackageMeta<Lang>, options?: SignalOptions): Promise<WASIFS> {
+  async load(meta: PackageMeta, options?: SignalOptions): Promise<WASIFS> {
     const registry = this.registries.find((r) => r.name === meta.registry);
     if (!registry) throw new PackageNotFoundError(`No such registry: ${meta.registry}`);
     return registry.load(meta, options);
   }
 
-  createWorkspace(): PackageWorkspace<Lang> {
+  createWorkspace(): PackageWorkspace {
     return new PackageWorkspace(this);
   }
 }
 
-export type PackageList<Lang extends Language = Language> = (string | PackageMeta<Lang>)[];
+export type PackageList = (string | PackageMeta)[];
 
-export class PackageWorkspace<Lang extends Language> {
-  installed: PackageMeta<Lang>[] = [];
+export class PackageWorkspace {
+  installed: PackageMeta[] = [];
 
-  constructor(private manager: PackageManager<Lang>) {}
+  constructor(private manager: PackageManager) {}
 
-  async install(...packages: PackageList<Lang>): Promise<void> {
+  async install(...packages: PackageList): Promise<void> {
     await Promise.all(packages.map((pack) => this.installOne(pack)));
   }
 
-  private async installOne(pack: PackageList<Lang>[0]): Promise<void> {
+  private async installOne(pack: PackageList[0]): Promise<void> {
     const meta = typeof pack === "string" ? await this.manager.resolve(pack) : pack;
     const existing = this.installed.find((m) => m.name === meta.name);
     if (existing) return;
@@ -205,7 +129,7 @@ export class PackageWorkspace<Lang extends Language> {
 
   private gatherText(
     fs: WASIFS,
-    path: (meta: PackageMeta<Lang>) => string | undefined,
+    path: (meta: PackageMeta) => string | undefined,
     appendMode: "append" | "prepend",
     delim: string = "\n",
   ) {
@@ -230,3 +154,5 @@ export class PackageWorkspace<Lang extends Language> {
     return code;
   }
 }
+
+export * from "./schema";

@@ -3,10 +3,10 @@ import { PackageMeta, PackageNotFoundError, PackageRegistry, PackageSearchOption
 import type { WASIFS } from "@runno/wasi";
 import { fetchWASIFS, SignalOptions } from "../utils";
 
-export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
-  private _registry?: PackageMeta<Lang>[];
+export class BaseRegistry extends PackageRegistry {
+  private _registry?: PackageMeta[];
 
-  constructor(private language: Lang) {
+  constructor(private language: Language) {
     super();
   }
 
@@ -14,7 +14,7 @@ export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
     return "base";
   }
 
-  async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta<Lang>[]> {
+  async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta[]> {
     const registry = await this.fetchRegistry();
     const packages = registry
       .filter((p) => {
@@ -29,14 +29,14 @@ export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
     return packages;
   }
 
-  async resolve(name: string): Promise<PackageMeta<Lang>> {
+  async resolve(name: string): Promise<PackageMeta> {
     const registry = await this.fetchRegistry();
     const meta = registry.find((p) => p.name === name);
     if (!meta) throw new PackageNotFoundError(name);
     return meta;
   }
 
-  load(meta: PackageMeta<Lang>, options?: SignalOptions): Promise<WASIFS> {
+  load(meta: PackageMeta, options?: SignalOptions): Promise<WASIFS> {
     return fetchWASIFS(meta.source, options);
   }
 

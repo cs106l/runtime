@@ -2,7 +2,15 @@
  * Script to build all language packages in the base registry.
  */
 
-import { Language, PackageMeta, RuntimeOptions } from "./src";
+import { z } from "zod";
+import {
+  BaseRuntimeSchema,
+  Language,
+  LanguageSchema,
+  LanguagesRuntimeSchema,
+  PackageMeta,
+  PackageMetaSchema,
+} from "./src";
 
 import fs from "fs";
 import path from "path";
@@ -15,16 +23,18 @@ import { create as createTar } from "tar";
 const PackagesDir = "packages";
 const ManifestFiles = ["manifest.json", "manifest.ts", "manifest.js"];
 
-export type Manifest<Lang extends Language> = Omit<
-  PackageMeta<Lang>,
-  "registry" | "source" | "runtime"
-> & {
+export type Manifest = z.infer<typeof ManifestSchema>;
+
+const ManifestSchema = PackageMetaSchema.omit({
+  registry: true, // Will be manually set
+  source: true, // Will be manually set
+}).extend({
   /**
    * Path to the directory that will become the package root in the virtual filesystem.
    * This path is relative to the package dir (i.e. the dir where this manifest lives).
    * @default "."
    */
-  rootDir?: string;
+  rootDir: z.string().optional(),
 
   /**
    * Optional array of file patterns describing what files should be packed.
@@ -35,30 +45,32 @@ export type Manifest<Lang extends Language> = Omit<
    * These paths/globs are relative to the `rootDir`. The package manifest will
    * never be included.
    */
-  files?: string[];
+  files: z.string().array().optional(),
 
   /**
    * An optional command to run before packing the tarball for the package.
    * The command will be run in the package directory.
    */
-  build?: string;
+  build: z.string().optional(),
 
-  runtime: RuntimeOptions<Lang> & {
-    /**
-     * A path, relative to `rootDir`, to a file whose
-     * contents should be included **before** the executing program
-     */
-    prefixFile?: string;
+  runtime: LanguagesRuntimeSchema.and(
+    BaseRuntimeSchema.extend({
+      /**
+       * A path, relative to `rootDir`, to a file whose
+       * contents should be included **before** the executing program
+       */
+      prefixFile: z.string().optional(),
 
-    /**
-     * A path, relative to `rootDir`, to a file whose
-     * contents should be included **after** the executing program
-     *
-     * This can be useful for creating test-harness packages ("runners").
-     */
-    postfixFile?: string;
-  };
-};
+      /**
+       * A path, relative to `rootDir`, to a file whose
+       * contents should be included **after** the executing program
+       *
+       * This can be useful for creating test-harness packages ("runners").
+       */
+      postfixFile: z.string().optional(),
+    }),
+  ).optional(),
+});
 
 function findManifestPaths(dir: string = PackagesDir): string[] {
   let manifests: string[] = [];
@@ -93,18 +105,20 @@ function getManifestLanguage(manifestPath: string): Language {
   /* Get the manifest language by inspecting the path */
   const relPath = path.relative(PackagesDir, manifestPath);
   const rawLang = relPath.split(path.sep)[0];
-  if (!Object.values(Language).includes(rawLang as Language))
+  const lang = LanguageSchema.safeParse(rawLang);
+  if (!lang.success)
     throw new Error(
       `Failed to infer language from manifest ${manifestPath}. Is it in a directory like ${path.join(
         PackagesDir,
         Language.Cpp,
       )}?`,
     );
-  return rawLang as Language;
+  return lang.data;
 }
 
-async function loadManifest(manifestPath: string): Promise<Manifest<Language>> {
+async function loadManifest(manifestPath: string): Promise<Manifest> {
   if (!fs.existsSync(manifestPath)) throw new Error(`No such file: ${manifestPath}`);
+
   let rawManifest: unknown;
 
   if (manifestPath.endsWith(".json")) {
@@ -121,7 +135,13 @@ async function loadManifest(manifestPath: string): Promise<Manifest<Language>> {
     throw new Error(`Unsupported manifest type: ${manifestPath}`);
   }
 
-  return rawManifest as Manifest<Language>;
+  const manifest = ManifestSchema.safeParse(rawManifest);
+  if (!manifest.success)
+    throw new Error(
+      `Failed to load manifest at ${manifestPath}. Got the following errors:\n\n${manifest.error.toString()}`,
+    );
+
+  return manifest.data;
 }
 
 async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl: string) {
@@ -160,7 +180,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
 
   const { prefixFile, postfixFile, ...runtime } = manifest.runtime ?? {};
 
-  const meta: PackageMeta<Language> = {
+  const meta: PackageMeta = {
     name: manifest.name,
     label: manifest.label,
     description: manifest.description,

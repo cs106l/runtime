@@ -1,6 +1,6 @@
 {
   "name": "@cs106l/runtime",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,7 +29,8 @@
   "dependencies": {
     "@obsidize/tar-browserify": "^5.2.0",
     "@runno/wasi": "^0.7.0",
-    "pako": "^2.1.0"
+    "pako": "^2.1.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

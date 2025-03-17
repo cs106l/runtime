@@ -16,8 +16,8 @@ import { fetchWASIFS } from "../utils";
  * ============================================================================
  */
 
-export type ExecutionContext<Lang extends Language> = {
-  packages: PackageWorkspace<Lang>;
+export type ExecutionContext = {
+  packages: PackageWorkspace;
   write: WriteFn;
 };
 
@@ -38,7 +38,7 @@ export type WorkerHostConfig = {
   fs?: WASIFS;
 };
 
-export type LanguageStep<Lang extends Language> = {
+export type LanguageStep = {
   status: RunStatus;
 
   /**
@@ -51,18 +51,18 @@ export type LanguageStep<Lang extends Language> = {
   run:
     | WorkerHostConfig
     | ((
-        context: ExecutionContext<Lang>,
+        context: ExecutionContext,
         prev: WASIExecutionResult,
       ) => WorkerHostConfig | Promise<WorkerHostConfig>);
 };
 
-export type LanguageConfiguration<Lang extends Language> = {
-  language: Lang;
+export type LanguageConfiguration = {
+  language: Language;
 
   /** An optional URL to a .tar.gz containing the initial contents of the filesystem for this language */
   filesystem?: string;
-  steps: [LanguageStep<Lang>, ...LanguageStep<Lang>[]];
-  packages?: PackageManager<Lang>;
+  steps: [LanguageStep, ...LanguageStep[]];
+  packages?: PackageManager;
 };
 
 /*
@@ -87,11 +87,11 @@ export type OutputConfig = {
  */
 export type WorkerHost = Omit<WASIWorkerHost, "kill" | "reject">;
 
-export type RunConfig<Lang extends Language> = {
+export type RunConfig = {
   onStatusChanged?: (status: RunStatus) => void;
   onWorkerCreated?: (host: WorkerHost) => void;
   output?: WriteFn | OutputConfig;
-  packages?: PackageWorkspace<Lang> | PackageList<Lang>;
+  packages?: PackageWorkspace | PackageList;
   signal?: AbortSignal;
 };
 
@@ -105,10 +105,10 @@ export type RunConfig<Lang extends Language> = {
  *
  * @returns
  */
-export async function run<Lang extends Language>(
-  language: Lang,
+export async function run(
+  language: Language,
   code: string,
-  config?: RunConfig<Lang>,
+  config?: RunConfig,
 ): Promise<WASIExecutionResult> {
   config ??= {};
   config.onStatusChanged?.(RunStatus.Installing);
@@ -184,17 +184,17 @@ export async function run<Lang extends Language>(
   return prevResult;
 }
 
-async function createContext<Lang extends Language>(
-  langConfig: LanguageConfiguration<Lang>,
-  config: RunConfig<Lang>,
-): Promise<ExecutionContext<Lang>> {
+async function createContext(
+  langConfig: LanguageConfiguration,
+  config: RunConfig,
+): Promise<ExecutionContext> {
   let write: WriteFn;
   let output = config.output ?? {};
 
   if (typeof output === "function") write = output;
   else write = output.write ?? (() => {});
 
-  let packages: PackageWorkspace<Lang>;
+  let packages: PackageWorkspace;
   const pm = langConfig.packages ?? new PackageManager();
 
   if (config.packages) {
@@ -220,8 +220,8 @@ function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
   return URL.createObjectURL(new Blob([file.content], { type: "application/wasm" }));
 }
 
-export function getLanguageConfig<Lang extends Language>(
-  language: Lang,
-): LanguageConfiguration<Lang> {
+export function getLanguageConfig(
+  language: Language,
+): LanguageConfiguration {
   return LanguagesConfig[language];
 }

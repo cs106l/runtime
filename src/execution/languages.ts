@@ -3,7 +3,7 @@ import type { LanguageConfiguration } from ".";
 import { Language, RunStatus } from "..";
 import { PackageManager } from "../packages";
 
-const Cpp: LanguageConfiguration<Language.Cpp> = {
+const Cpp: LanguageConfiguration = {
   language: Language.Cpp,
   filesystem: "https://runno.dev/langs/clang-fs.tar.gz",
   packages: new PackageManager(new BaseRegistry(Language.Cpp)),
@@ -71,7 +71,7 @@ const Cpp: LanguageConfiguration<Language.Cpp> = {
   ],
 };
 
-const Python: LanguageConfiguration<Language.Python> = {
+const Python: LanguageConfiguration = {
   language: Language.Python,
   filesystem: "https://runno.dev/langs/python-3.11.3.tar.gz",
   packages: new PackageManager(new BaseRegistry(Language.Python)),
@@ -86,9 +86,7 @@ const Python: LanguageConfiguration<Language.Python> = {
   ],
 };
 
-export const LanguagesConfig: {
-  [P in Language]: LanguageConfiguration<P>;
-} = {
+export const LanguagesConfig: Record<Language, LanguageConfiguration> = {
   [Language.Cpp]: Cpp,
   [Language.Python]: Python,
 };
