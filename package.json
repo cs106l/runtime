@@ -15,12 +15,14 @@
   },
   "homepage": "https://github.com/cs106l/runtime#readme",
   "dependencies": {
-    "@runno/runtime": "^0.7.0",
+    "@obsidize/tar-browserify": "^5.2.0",
     "@runno/wasi": "^0.7.0",
+    "pako": "^2.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
+    "@types/pako": "^2.0.3",
     "fast-glob": "^3.3.3",
     "tar": "^7.4.3",
     "tsconfig-paths": "^4.2.0",

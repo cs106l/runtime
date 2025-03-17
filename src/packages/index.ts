@@ -1,6 +1,7 @@
 import type { WASIFS } from "@runno/wasi";
 import { Language } from "..";
 import { z } from "zod";
+import { SignalOptions } from "src/utils";
 
 export type PackageMeta<Lang extends Language> = z.infer<
   ReturnType<typeof PackageMetaSchema<Lang>>
@@ -58,11 +59,11 @@ export function PackageMetaSchema<Lang extends Language>(language: Lang) {
      * For example, C++ packages might use this to encode compiler/linker flags to ensure the package
      * headers can be included.
      */
-    runtime: CommonRuntimeOptionsSchema.merge(RuntimeLanguageOptionsSchemas[language]).optional(),
+    runtime: CommonRuntimeOptionsSchema.and(RuntimeLanguageOptionsSchemas[language]).optional(),
   });
 }
 
-const CommonRuntimeOptionsSchema = z.object({
+export const CommonRuntimeOptionsSchema = z.object({
   /**
    * A path, relative to the virtual file system root, to a file whose
    * contents should be included **before** the executing program
@@ -78,7 +79,7 @@ const CommonRuntimeOptionsSchema = z.object({
   postfixFile: z.string().optional(),
 });
 
-const RuntimeLanguageOptionsSchemas = {
+export const RuntimeLanguageOptionsSchemas = {
   [Language.Python]: z.object({}),
   [Language.Cpp]: z.object({}),
 };
@@ -162,10 +163,10 @@ export class PackageManager<Lang extends Language> {
     throw new PackageNotFoundError(name);
   }
 
-  async load(meta: PackageMeta<Lang>): Promise<WASIFS> {
+  async load(meta: PackageMeta<Lang>, options?: SignalOptions): Promise<WASIFS> {
     const registry = this.registries.find((r) => r.name === meta.registry);
     if (!registry) throw new PackageNotFoundError(`No such registry: ${meta.registry}`);
-    return registry.load(meta);
+    return registry.load(meta, options);
   }
 
   createWorkspace(): PackageWorkspace<Lang> {
@@ -173,24 +174,66 @@ export class PackageManager<Lang extends Language> {
   }
 }
 
+export type PackageList<Lang extends Language = Language> = (string | PackageMeta<Lang>)[];
+
 export class PackageWorkspace<Lang extends Language> {
   installed: PackageMeta<Lang>[] = [];
 
   constructor(private manager: PackageManager<Lang>) {}
 
-  async install(name: string | PackageMeta<Lang>): Promise<PackageMeta<Lang>> {
-    const meta = typeof name === "string" ? await this.manager.resolve(name) : name;
+  async install(...packages: PackageList<Lang>): Promise<void> {
+    await Promise.all(packages.map((pack) => this.installOne(pack)));
+  }
+
+  private async installOne(pack: PackageList<Lang>[0]): Promise<void> {
+    const meta = typeof pack === "string" ? await this.manager.resolve(pack) : pack;
     const existing = this.installed.find((m) => m.name === meta.name);
-    if (existing) return existing;
+    if (existing) return;
     this.installed.push(meta);
 
     // Install dependencies recursively
-    if (meta.dependencies) await Promise.all(meta.dependencies.map((dep) => this.install(dep)));
-    return meta;
+    if (meta.dependencies) await this.install(...meta.dependencies);
   }
 
-  async build(): Promise<WASIFS> {
-    const fsList = await Promise.all(this.installed.map((meta) => this.manager.load(meta)));
+  async build(options?: SignalOptions): Promise<WASIFS> {
+    const fsList = await Promise.all(
+      this.installed.map((meta) => this.manager.load(meta, options)),
+    );
     return Object.assign({}, ...fsList);
+  }
+
+  prefixCode(fs: WASIFS): string {
+    return this.gatherText(fs, (meta) => meta.runtime?.prefixFile, "append");
+  }
+
+  postfixCode(fs: WASIFS): string {
+    return this.gatherText(fs, (meta) => meta.runtime?.postfixFile, "prepend");
+  }
+
+  private gatherText(
+    fs: WASIFS,
+    path: (meta: PackageMeta<Lang>) => string | undefined,
+    appendMode: "append" | "prepend",
+    delim: string = "\n",
+  ) {
+    const decoder = new TextDecoder();
+    let code = "";
+
+    for (const meta of this.installed) {
+      const filePath = path(meta);
+      if (!filePath) continue;
+      const file = fs[filePath];
+      if (!file) continue;
+      let fileContent: string;
+      if (file.mode === "string") fileContent = file.content;
+      else if (file.mode === "binary") fileContent = decoder.decode(file.content);
+      else throw new Error(`Unhandled WASIFS file mode: ${(file as any).mode}`);
+      fileContent += delim;
+
+      if (appendMode === "append") code = `${code}${fileContent}\n`;
+      else code = `\n${fileContent}${code}`;
+    }
+
+    return code;
   }
 }

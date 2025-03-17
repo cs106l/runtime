@@ -1,7 +1,7 @@
 import { Language } from "..";
 import { PackageMeta, PackageNotFoundError, PackageRegistry, PackageSearchOptions } from ".";
 import type { WASIFS } from "@runno/wasi";
-import { fetchWASIFS } from "@runno/runtime";
+import { fetchWASIFS, SignalOptions } from "src/utils";
 
 export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
   private _registry?: PackageMeta<Lang>[];
@@ -36,8 +36,8 @@ export class BaseRegistry<Lang extends Language> extends PackageRegistry<Lang> {
     return meta;
   }
 
-  load(meta: PackageMeta<Lang>): Promise<WASIFS> {
-    return fetchWASIFS(meta.source);
+  load(meta: PackageMeta<Lang>, options?: SignalOptions): Promise<WASIFS> {
+    return fetchWASIFS(meta.source, options);
   }
 
   private async fetchRegistry(): Promise<NonNullable<typeof this._registry>> {

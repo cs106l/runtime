@@ -4,7 +4,12 @@
 
 import { z } from "zod";
 import { Language } from "src";
-import { PackageMeta, PackageMetaSchema } from "src/packages";
+import {
+  CommonRuntimeOptionsSchema,
+  PackageMeta,
+  PackageMetaSchema,
+  RuntimeLanguageOptionsSchemas,
+} from "src/packages";
 
 import fs from "fs";
 import path from "path";
@@ -24,7 +29,8 @@ function ManifestSchema<Lang extends Language>(lang: Lang) {
   return base
     .omit({
       registry: true, // Will be manually set
-      source: true, // Will be manually set
+      source: true, // Will be manually set,
+      runtime: true, // Overriding documentation
     })
     .extend({
       /**
@@ -51,23 +57,22 @@ function ManifestSchema<Lang extends Language>(lang: Lang) {
        */
       build: z.string().optional(),
 
-      runtime: base.shape.runtime
-        .unwrap()
-        .extend({
-          /**
-           * A path, relative to `rootDir`, to a file whose
-           * contents should be included **before** the executing program
-           */
-          prefixFile: z.string().optional(),
+      runtime: CommonRuntimeOptionsSchema.extend({
+        /**
+         * A path, relative to `rootDir`, to a file whose
+         * contents should be included **before** the executing program
+         */
+        prefixFile: z.string().optional(),
 
-          /**
-           * A path, relative to `rootDir`, to a file whose
-           * contents should be included **after** the executing program
-           *
-           * This can be useful for creating test-harness packages ("runners").
-           */
-          postfixFile: z.string().optional(),
-        })
+        /**
+         * A path, relative to `rootDir`, to a file whose
+         * contents should be included **after** the executing program
+         *
+         * This can be useful for creating test-harness packages ("runners").
+         */
+        postfixFile: z.string().optional(),
+      })
+        .and(RuntimeLanguageOptionsSchemas[lang])
         .optional(),
     });
 }

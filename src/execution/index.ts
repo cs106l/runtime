@@ -1,0 +1,226 @@
+import {
+  WASIExecutionResult,
+  WASIFile,
+  WASIFS,
+  WASIWorkerHost,
+  WASIWorkerHostKilledError,
+} from "@runno/wasi";
+import { Language } from "..";
+import { PackageList, PackageManager, PackageWorkspace } from "src/packages";
+import { LanguagesConfig } from "./languages";
+import { fetchWASIFS } from "src/utils";
+
+/*
+ * ============================================================================
+ * Language-specific configuration
+ * ============================================================================
+ */
+
+export type ExecutionContext<Lang extends Language> = {
+  packages: PackageWorkspace<Lang>;
+  write: WriteFn;
+};
+
+export type WorkerHostConfig = {
+  /**
+   * The WASM binary that should be executed
+   * Can either be a URL to a WASM file to be fetched, an absolute path to a file on `fs`, or a WASIFile (e.g. from a previous steps filesystem)
+   */
+  binary: string | WASIFile;
+
+  /** The command that the host will run */
+  args: [string, ...string[]];
+
+  /**
+   * The file system to execute the command with.
+   * Defaults to the previous filesystem in the chain if not passed.
+   */
+  fs?: WASIFS;
+};
+
+export type LanguageStep<Lang extends Language> = {
+  status: RunStatus;
+
+  /**
+   * Configures this step. Either a WorkerHostConfig or a function that produces one from the previous step's result.
+   * @param context The execution context for the current run
+   * @param prev    The result of running the previous step.
+   *                The first step will always have a file `/program` with the contents of the code to be executed.
+   * @returns A configuration which can be used to run this step.
+   */
+  run:
+    | WorkerHostConfig
+    | ((
+        context: ExecutionContext<Lang>,
+        prev: WASIExecutionResult,
+      ) => WorkerHostConfig | Promise<WorkerHostConfig>);
+};
+
+export type LanguageConfiguration<Lang extends Language> = {
+  language: Lang;
+
+  /** An optional URL to a .tar.gz containing the initial contents of the filesystem for this language */
+  filesystem?: string;
+  steps: [LanguageStep<Lang>, ...LanguageStep<Lang>[]];
+  packages?: PackageManager<Lang>;
+};
+
+/*
+ * ============================================================================
+ * Code execution
+ * ============================================================================
+ */
+
+export enum RunStatus {
+  Installing,
+  Compiling,
+  Linking,
+  Running,
+}
+
+export type WriteFn = (data: string) => void;
+
+// Note: This object can be extended in the future for canvas support
+export type OutputConfig = {
+  write?: WriteFn;
+};
+
+/**
+ * A WASI worker host. Use this to pass standard in.
+ *
+ * This is the same as `@runno/wasi`'s `WASIWorkerHost`
+ * except it's `kill` method is omitted. To "kill" a worker host,
+ * use `AbortController`.
+ */
+export type WorkerHost = Omit<WASIWorkerHost, "kill" | "reject">;
+
+export type RunConfig<Lang extends Language> = {
+  onStatusChanged?: (status: RunStatus) => void;
+  onWorkerCreated?: (host: WorkerHost) => void;
+  output?: WriteFn | OutputConfig;
+  packages?: PackageWorkspace<Lang> | PackageList<Lang>;
+  signal?: AbortSignal;
+};
+
+/**
+ * Runs a code snippet
+ * @param language
+ * @param code
+ * @param config
+ *
+ * @throws `config.signal.reason` if aborted.
+ *
+ * @returns
+ */
+export async function run<Lang extends Language>(
+  language: Lang,
+  code: string,
+  config?: RunConfig<Lang>,
+): Promise<WASIExecutionResult> {
+  config ??= {};
+  config.onStatusChanged?.(RunStatus.Installing);
+
+  const langConfig = LanguagesConfig[language];
+  const context = await createContext(langConfig, config);
+  config.signal?.throwIfAborted();
+
+  let vfs: WASIFS = {};
+
+  /* Load base filesystem */
+  if (langConfig.filesystem) {
+    const filesystem = await fetchWASIFS(langConfig.filesystem, config);
+    vfs = { ...vfs, ...filesystem };
+  }
+
+  /* Download packages */
+  const filesystem = await context.packages.build(config);
+  vfs = { ...vfs, ...filesystem };
+
+  /* Place user code at /program file */
+  vfs = {
+    ...vfs,
+    "/program": {
+      path: "program",
+      content: `${context.packages.prefixCode(vfs)}${code}${context.packages.postfixCode(vfs)}`,
+      mode: "string",
+      timestamps: {
+        access: new Date(),
+        modification: new Date(),
+        change: new Date(),
+      },
+    },
+  };
+
+  /* Run steps to execute code */
+  let prevResult: WASIExecutionResult = { exitCode: 0, fs: vfs };
+  for (const step of langConfig.steps) {
+    config.onStatusChanged?.(step.status);
+
+    let hostConfig: WorkerHostConfig;
+    if (typeof step.run === "function") hostConfig = await step.run(context, prevResult);
+    else hostConfig = step.run;
+    config.signal?.throwIfAborted();
+
+    hostConfig.fs ??= prevResult.fs;
+
+    const host = new WASIWorkerHost(toBinaryURL(hostConfig.fs, hostConfig.binary), {
+      args: hostConfig.args,
+      env: {},
+      fs: hostConfig.fs,
+      stdout: context.write,
+      stderr: context.write,
+    });
+
+    config.onWorkerCreated?.(host);
+    config.signal?.addEventListener("abort", host.kill);
+
+    try {
+      prevResult = await host.start();
+    } catch (e) {
+      if (!(e instanceof WASIWorkerHostKilledError)) throw e;
+    } finally {
+      config.signal?.removeEventListener("abort", host.kill);
+      config.signal?.throwIfAborted();
+    }
+
+    if (prevResult.exitCode !== 0) return prevResult;
+  }
+
+  return prevResult;
+}
+
+async function createContext<Lang extends Language>(
+  langConfig: LanguageConfiguration<Lang>,
+  config: RunConfig<Lang>,
+): Promise<ExecutionContext<Lang>> {
+  let write: WriteFn;
+  let output = config.output ?? {};
+
+  if (typeof output === "function") write = output;
+  else write = output.write ?? (() => {});
+
+  let packages: PackageWorkspace<Lang>;
+  const pm = langConfig.packages ?? new PackageManager();
+
+  if (config.packages) {
+    if (Array.isArray(config.packages)) {
+      packages = pm.createWorkspace();
+      await packages.install(...config.packages);
+    } else packages = config.packages;
+  } else packages = pm.createWorkspace();
+
+  return { write, packages };
+}
+
+function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
+  if (typeof binary === "string" && !binary.startsWith("/")) return binary;
+
+  let file: WASIFile;
+  if (typeof binary === "object") file = binary;
+  else {
+    file = fs[binary];
+    if (!file) throw new Error(`Missing binary file expected in filesystem at ${binary}`);
+  }
+
+  return URL.createObjectURL(new Blob([file.content], { type: "application/wasm" }));
+}
