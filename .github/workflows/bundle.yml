@@ -19,10 +19,6 @@ jobs:
       manifests: ${{ steps.changed.outputs.manifests }}
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: "true" # Pull submodules as well
-          fetch-depth: 2
-
       - uses: actions/setup-node@v4
         with:
           node-version: "23.x"
@@ -53,9 +49,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: "true" # Pull submodules as well (TODO: Only pull relevant submodules)
-
       - uses: actions/setup-node@v4
         with:
           node-version: "23.x"
