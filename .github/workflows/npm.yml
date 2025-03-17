@@ -24,7 +24,7 @@ jobs:
       - name: Publish to npm
         if: env.cur_version != env.prev_version
         run: |
-          npm publish
+          npm publish --verbose
           git tag v${{ env.cur_version }}
           git push origin v${{ env.cur_version }}
         env:
