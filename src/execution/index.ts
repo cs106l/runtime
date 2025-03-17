@@ -219,3 +219,9 @@ function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
 
   return URL.createObjectURL(new Blob([file.content], { type: "application/wasm" }));
 }
+
+export function getLanguageConfig<Lang extends Language>(
+  language: Lang,
+): LanguageConfiguration<Lang> {
+  return LanguagesConfig[language];
+}
