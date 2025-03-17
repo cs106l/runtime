@@ -151,7 +151,7 @@ export async function run<Lang extends Language>(
 
     let hostConfig: WorkerHostConfig;
     if (typeof step.run === "function") hostConfig = await step.run(context, prevResult);
-    else hostConfig = step.run;
+    else hostConfig = { ...step.run };
     config.signal?.throwIfAborted();
 
     hostConfig.fs ??= prevResult.fs;
