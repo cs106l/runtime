@@ -166,7 +166,8 @@ export async function run<Lang extends Language>(
 
     config.onWorkerCreated?.(host);
     const onAbort = () => host.kill();
-    config.signal?.addEventListener("abort", onAbort);
+    config.signal?.throwIfAborted();
+    config.signal?.addEventListener("abort", onAbort, { once: true });
 
     try {
       prevResult = await host.start();
