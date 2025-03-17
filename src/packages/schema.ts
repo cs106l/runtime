@@ -87,8 +87,6 @@ export const PackageMetaSchema = z.object({
   runtime: RuntimeOptionsSchema.optional(),
 });
 
-export const LanguageSchema = z.nativeEnum(Language);
-
 export type BaseRuntime = z.infer<typeof BaseRuntimeSchema>;
 export type CppRuntime = z.infer<typeof CppRuntimeSchema>;
 export type PythonRuntime = z.infer<typeof PythonRuntimeSchema>;

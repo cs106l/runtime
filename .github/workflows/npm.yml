@@ -15,8 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '23.x'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "23.x"
+          registry-url: "https://registry.npmjs.org"
       - run: npm ci
       - run: echo "cur_version=$(jq -r .version package.json)" >> $GITHUB_ENV
       - run: echo "prev_version=$(npm view . version || echo '0.1.0')" >> $GITHUB_ENV

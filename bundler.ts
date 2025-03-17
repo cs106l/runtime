@@ -6,7 +6,6 @@ import { z } from "zod";
 import {
   BaseRuntimeSchema,
   Language,
-  LanguageSchema,
   LanguagesRuntimeSchema,
   PackageMeta,
   PackageMetaSchema,
@@ -105,7 +104,7 @@ function getManifestLanguage(manifestPath: string): Language {
   /* Get the manifest language by inspecting the path */
   const relPath = path.relative(PackagesDir, manifestPath);
   const rawLang = relPath.split(path.sep)[0];
-  const lang = LanguageSchema.safeParse(rawLang);
+  const lang = z.nativeEnum(Language).safeParse(rawLang);
   if (!lang.success)
     throw new Error(
       `Failed to infer language from manifest ${manifestPath}. Is it in a directory like ${path.join(

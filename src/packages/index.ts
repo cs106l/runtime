@@ -1,7 +1,6 @@
 import type { WASIFS } from "@runno/wasi";
-import { Language } from "..";
 import { SignalOptions } from "../utils";
-import { PackageMeta } from "./schema";
+import type { PackageMeta } from "./schema";
 
 export class PackageNotFoundError extends Error {}
 
