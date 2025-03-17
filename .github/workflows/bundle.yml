@@ -49,6 +49,7 @@ jobs:
     strategy:
       matrix:
         manifest: ${{ fromJson(needs.identify-changes.outputs.manifests) }}
+      max-parallel: 1
 
     steps:
       - uses: actions/checkout@v2
