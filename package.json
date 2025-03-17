@@ -1,13 +1,14 @@
 {
   "name": "@cs106l/runtime",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "npx tsc",
     "bundler": "npx ts-node bundler.ts",
-    "format": "npx prettier . --write --config .prettierrc"
+    "format": "npx prettier . --write --config .prettierrc",
+    "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
