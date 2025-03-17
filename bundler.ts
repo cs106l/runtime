@@ -106,7 +106,7 @@ const registryCache = new Map<Language, PackageMeta[]>();
 async function fetchPackageRegistry(language: Language): Promise<PackageMeta[]> {
   if (registryCache.has(language)) return registryCache.get(language)!;
 
-  const url = `https://raw.githubusercontent.com/${org}/${repo}/${language}/registry.json`;
+  const url = `https://raw.githubusercontent.com/${org}/${repo}/dist/${language}/registry.json`;
 
   try {
     const res = await fetch(url);
