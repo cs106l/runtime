@@ -165,14 +165,15 @@ export async function run<Lang extends Language>(
     });
 
     config.onWorkerCreated?.(host);
-    config.signal?.addEventListener("abort", host.kill);
+    const onAbort = () => host.kill();
+    config.signal?.addEventListener("abort", onAbort);
 
     try {
       prevResult = await host.start();
     } catch (e) {
       if (!(e instanceof WASIWorkerHostKilledError)) throw e;
     } finally {
-      config.signal?.removeEventListener("abort", host.kill);
+      config.signal?.removeEventListener("abort", onAbort);
       config.signal?.throwIfAborted();
     }
 
