@@ -247,7 +247,8 @@ async function cli() {
       },
     });
 
-    console.log(values.changed ? getChangedManifests() : findManifestPaths());
+    const json = JSON.stringify(values.changed ? getChangedManifests() : findManifestPaths());
+    console.log(json);
     return;
   } else if (command === "bundle") {
     const { positionals, values } = parseArgs({
