@@ -68,6 +68,7 @@ export const PackageMetaSchema = z.object({
   /**
    * Which package registry to load the package from
    */
+  // TODO: Jacob -- remove this, it should be out of line and not included here. I.e. have a separate ResolvedPackage type { registry: string, meta: PackageMeta }
   registry: z.string(),
 
   /**
@@ -76,6 +77,7 @@ export const PackageMetaSchema = z.object({
    * There are no hard requirements on the contents of this string--package registries will use this internally
    * to load packages into the virtual filesystem. For example, this might be a URL to a tarball.
    */
+  // TODO: Maybe remove this, maybe not... Could save on an extra call
   source: z.string(),
 
   /**
