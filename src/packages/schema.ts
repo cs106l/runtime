@@ -19,6 +19,12 @@ export const BaseRuntimeSchema = z.object({
 
 export const CppRuntimeSchema = z.object({
   language: z.literal(Language.Cpp),
+
+  /**
+   * An array of include paths relative to the virtual file system root
+   * where headers can be searched for.
+   */
+  includePaths: z.string().array().optional(),
 });
 
 export const PythonRuntimeSchema = z.object({

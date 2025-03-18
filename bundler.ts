@@ -5,10 +5,12 @@
 import { z } from "zod";
 import {
   BaseRuntimeSchema,
+  CppRuntimeSchema,
   Language,
   LanguagesRuntimeSchema,
   PackageMeta,
   PackageMetaSchema,
+  PythonRuntimeSchema,
 } from "./src";
 
 import fs from "fs";
@@ -23,6 +25,18 @@ const PackagesDir = "packages";
 const ManifestFiles = ["manifest.json", "manifest.ts", "manifest.js"];
 
 export type Manifest = z.infer<typeof ManifestSchema>;
+
+const ManifestLanguagesRuntimeSchema = z.discriminatedUnion("language", [
+  z.object({ language: z.literal(undefined) }),
+  CppRuntimeSchema.extend({
+    /**
+     * An array of include paths relative to `rootDir`
+     * where headers can be searched for.
+     */
+    includePaths: CppRuntimeSchema.shape.includePaths,
+  }),
+  PythonRuntimeSchema,
+]);
 
 const ManifestSchema = PackageMetaSchema.omit({
   registry: true, // Will be manually set
@@ -64,7 +78,7 @@ const ManifestSchema = PackageMetaSchema.omit({
        * A path, relative to `rootDir`, to a file whose
        * contents should be included **before** the executing program
        */
-      prefixFile: z.string().optional(),
+      prefixFile: BaseRuntimeSchema.shape.prefixFile,
 
       /**
        * A path, relative to `rootDir`, to a file whose
@@ -72,7 +86,7 @@ const ManifestSchema = PackageMetaSchema.omit({
        *
        * This can be useful for creating test-harness packages ("runners").
        */
-      postfixFile: z.string().optional(),
+      postfixFile: BaseRuntimeSchema.shape.postfixFile,
     }),
   ).optional(),
 });
@@ -173,8 +187,14 @@ async function loadManifest(manifestPath: string): Promise<Manifest> {
       throw new Error(`Failed to parse manifest json at ${manifestPath}`);
     }
   } else if (manifestPath.endsWith(".ts") || manifestPath.endsWith(".js")) {
-    const imported = (await import(manifestPath)).default;
-    rawManifest = typeof imported === "function" ? imported() : imported;
+    const cwd = process.cwd();
+    process.chdir(path.dirname(manifestPath));
+    try {
+      const imported = (await import(`.${path.sep}${manifestPath}`)).default;
+      rawManifest = typeof imported === "function" ? imported() : imported;
+    } finally {
+      process.chdir(cwd);
+    }
   } else {
     throw new Error(`Unsupported manifest type: ${manifestPath}`);
   }
@@ -222,7 +242,17 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
     files,
   );
 
+  /** Extends a rootDir-relative path to its absolute VFS path */
+  const extend = (relPath: string) => path.join(packagePrefix, relPath);
+
   const { prefixFile, postfixFile, ...runtime } = manifest.runtime ?? {};
+
+  /* Language specific adjustments */
+  if (runtime) {
+    if (runtime.language === Language.Cpp) {
+      runtime.includePaths = runtime.includePaths?.map(extend);
+    }
+  }
 
   const meta: PackageMeta = {
     name: manifest.name,
@@ -234,8 +264,8 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
     dependencies: manifest.dependencies,
     runtime: manifest.runtime
       ? {
-          prefixFile: prefixFile ? path.join(packagePrefix, prefixFile) : undefined,
-          postfixFile: postfixFile ? path.join(packagePrefix, postfixFile) : undefined,
+          prefixFile: prefixFile ? extend(prefixFile) : undefined,
+          postfixFile: postfixFile ? extend(postfixFile) : undefined,
           ...runtime,
         }
       : undefined,
