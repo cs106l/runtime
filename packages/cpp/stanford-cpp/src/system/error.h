@@ -20,7 +20,6 @@
 #ifndef _error_h
 #define _error_h
 
-#include <csignal>
 #include <exception>
 #include <iostream>
 #include <string>
