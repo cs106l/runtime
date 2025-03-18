@@ -72,7 +72,7 @@ const ManifestSchema = PackageMetaSchema.omit({
    */
   run: z.string().optional(),
 
-  runtime: LanguagesRuntimeSchema.and(
+  runtime: ManifestLanguagesRuntimeSchema.and(
     BaseRuntimeSchema.extend({
       /**
        * A path, relative to `rootDir`, to a file whose
@@ -191,7 +191,7 @@ async function loadManifest(manifestPath: string): Promise<Manifest> {
     process.chdir(path.dirname(manifestPath));
     try {
       const imported = (await import(`.${path.sep}${manifestPath}`)).default;
-      rawManifest = typeof imported === "function" ? imported() : imported;
+      rawManifest = typeof imported === "function" ? await imported() : imported;
     } finally {
       process.chdir(cwd);
     }
