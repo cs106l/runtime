@@ -47,7 +47,7 @@ export class BaseRegistry extends PackageRegistry {
     const res = await fetch(registryUrl, { signal });
     if (!res.ok) {
       if (res.status === 404) this._registry = [];
-      throw new Error(`Failed to fetch package registry: ${res.statusText}`);
+      else throw new Error(`Failed to fetch package registry: ${res.statusText}`);
     } else {
       this._registry = await res.json();
     }
