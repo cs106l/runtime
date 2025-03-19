@@ -87,7 +87,8 @@ async function hasManifestChanged(manifestPath: string): Promise<boolean> {
   const dir = path.dirname(manifestPath);
 
   try {
-    execSync(`git diff --exit-code ${sha} HEAD -- "${dir}"`);
+    // We will recompile if either the package or the bundler changes
+    execSync(`git diff --exit-code ${sha} HEAD -- "${dir}" bundler.ts`);
     return false;
   } catch {
     return true;
@@ -141,6 +142,7 @@ async function loadManifest(manifestPath: string): Promise<Manifest> {
   }
 
   const manifest = ManifestSchema.safeParse(rawManifest);
+  console.log(manifest);
   if (!manifest.success)
     throw new Error(
       `Failed to load manifest at ${manifestPath}. Got the following errors:\n\n${manifest.error.toString()}`,

@@ -34,7 +34,9 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@npmcli/promise-spawn": "^8.0.2",
     "@types/node": "^22.13.10",
+    "@types/npmcli__promise-spawn": "^6.0.3",
     "@types/pako": "^2.0.3",
     "fast-glob": "^3.3.3",
     "tar": "^7.4.3",

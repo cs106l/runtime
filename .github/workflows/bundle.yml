@@ -72,6 +72,7 @@ jobs:
 
   # Step 3: Finalize the package registry
   finalize-registry:
+    if: always()
     needs: bundle-manifests
     runs-on: ubuntu-latest
     steps:

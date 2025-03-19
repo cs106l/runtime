@@ -1,10 +1,10 @@
-import { execSync, spawn } from "child_process";
-import { promisify } from "util";
+import { execSync } from "child_process";
 import { Manifest } from "../../../bundler";
 import path from "path";
 import fs from "fs";
 import { globSync } from "fast-glob";
 import { getLanguageConfig, Language } from "../../../src";
+import promiseSpawn from "@npmcli/promise-spawn";
 
 const manifest: Manifest = {
   name: "stanford-cpp",
@@ -52,8 +52,6 @@ function writeBuildH() {
 
   console.log("build.h generated successfully at:", filePath);
 }
-
-const spawnAsync = promisify(spawn);
 
 /**
  * Installs the WASI SDK into the `wasi-sdk` folder in the current directory.
@@ -118,7 +116,7 @@ async function compile(includePaths: string[], source: string, build: string) {
   ];
 
   console.log(`Compiling with args: ${args.join(" ")}`);
-  await spawnAsync(CXX, args, { stdio: "inherit" });
+  await promiseSpawn(CXX, args, { stdio: "inherit" });
 }
 
 type BuildOptions = {
