@@ -48,6 +48,16 @@ export const PackageMetaSchema = z.object({
   name: z.string(),
 
   /**
+   * The package version
+   */
+  version: z.string(),
+
+  /**
+   * The name of the registry where this package originates
+   */
+  registry: z.string(),
+
+  /**
    * The name of the package as it should be shown to the end user
    * @default name
    */
@@ -59,29 +69,7 @@ export const PackageMetaSchema = z.object({
   description: z.string().optional(),
 
   /**
-   * The package version, using [semantic versioning](https://semver.org/)
-   *
-   * Currently, this version string is purely informative and does not participate in package resolution.
-   */
-  version: z.string().optional(),
-
-  /**
-   * Which package registry to load the package from
-   */
-  // TODO: Jacob -- remove this, it should be out of line and not included here. I.e. have a separate ResolvedPackage type { registry: string, meta: PackageMeta }
-  registry: z.string(),
-
-  /**
-   * Where the package can be found
-   *
-   * There are no hard requirements on the contents of this string--package registries will use this internally
-   * to load packages into the virtual filesystem. For example, this might be a URL to a tarball.
-   */
-  // TODO: Maybe remove this, maybe not... Could save on an extra call
-  source: z.string(),
-
-  /**
-   * A list of packages that should be installed first for this package to be functional
+   * A list of package refs that must be installed for this package to be functional
    * @default []
    */
   dependencies: z.string().array().optional(),

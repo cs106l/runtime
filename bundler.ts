@@ -3,15 +3,7 @@
  */
 
 import { z } from "zod";
-import {
-  BaseRuntimeSchema,
-  CppRuntimeSchema,
-  Language,
-  LanguagesRuntimeSchema,
-  PackageMeta,
-  PackageMetaSchema,
-  PythonRuntimeSchema,
-} from "./src";
+import { Language, PackageMeta, PackageMetaSchema } from "./src";
 
 import fs from "fs";
 import path from "path";
@@ -20,27 +12,22 @@ import { parseArgs } from "util";
 
 import glob from "fast-glob";
 import { create as createTar } from "tar";
+import { BundledPackageMeta } from "./src/packages/registry/base";
 
 const PackagesDir = "packages";
 const ManifestFiles = ["manifest.json", "manifest.ts", "manifest.js"];
 
+/**
+ * The manifest for a package in the root filesystem.
+ *
+ * **Note:**  Any file paths documented as being from the root of the virtual filesystem
+ *            **should be listed instead as relative to `rootDir`.** The bundler will
+ *            automatically append the necessary prefix to make it absolute on export.
+ */
 export type Manifest = z.infer<typeof ManifestSchema>;
-
-const ManifestLanguagesRuntimeSchema = z.discriminatedUnion("language", [
-  z.object({ language: z.literal(undefined) }),
-  CppRuntimeSchema.extend({
-    /**
-     * An array of include paths relative to `rootDir`
-     * where headers can be searched for.
-     */
-    includePaths: CppRuntimeSchema.shape.includePaths,
-  }),
-  PythonRuntimeSchema,
-]);
 
 const ManifestSchema = PackageMetaSchema.omit({
   registry: true, // Will be manually set
-  source: true, // Will be manually set
 }).extend({
   /**
    * A marker for when this package was bundled.
@@ -65,30 +52,6 @@ const ManifestSchema = PackageMetaSchema.omit({
    * never be included.
    */
   files: z.string().array().optional(),
-
-  /**
-   * An optional command to run before packing the tarball for the package.
-   * The command will be run in the package directory.
-   */
-  run: z.string().optional(),
-
-  runtime: ManifestLanguagesRuntimeSchema.and(
-    BaseRuntimeSchema.extend({
-      /**
-       * A path, relative to `rootDir`, to a file whose
-       * contents should be included **before** the executing program
-       */
-      prefixFile: BaseRuntimeSchema.shape.prefixFile,
-
-      /**
-       * A path, relative to `rootDir`, to a file whose
-       * contents should be included **after** the executing program
-       *
-       * This can be useful for creating test-harness packages ("runners").
-       */
-      postfixFile: BaseRuntimeSchema.shape.postfixFile,
-    }),
-  ).optional(),
 });
 
 function findManifestPaths(dir: string = PackagesDir): string[] {
@@ -212,9 +175,6 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   const packageDir = path.dirname(manifestPath);
   const manifest = await loadManifest(manifestPath);
 
-  /* Run build hook if needed */
-  if (manifest.run) execSync(manifest.run, { cwd: packageDir });
-
   /* Glob package files and tar */
   const cwd = path.join(packageDir, manifest.rootDir ?? ".");
   const files = await glob(manifest.files ?? "**/*", {
@@ -254,7 +214,8 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
     }
   }
 
-  const meta: PackageMeta = {
+  const meta: BundledPackageMeta = {
+    build: manifest.build,
     name: manifest.name,
     label: manifest.label,
     description: manifest.description,
@@ -273,10 +234,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
 
   /* The build number is not part of the PackageMeta,
    * but we include it so that CI can determine when to re-build */
-  fs.writeFileSync(
-    path.join(langDir, `${manifest.name}.json`),
-    JSON.stringify({ build: manifest.build, ...meta }),
-  );
+  fs.writeFileSync(path.join(langDir, `${manifest.name}.json`), JSON.stringify(meta));
 }
 
 function writeRegistry(lang: Language, outputDir: string) {

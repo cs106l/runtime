@@ -6,7 +6,7 @@ import {
   WASIWorkerHostKilledError,
 } from "@runno/wasi";
 import { Language, RunStatus, PackageManager } from "..";
-import type { PackageList, PackageWorkspace } from "..";
+import type { PackageRef, PackageWorkspace } from "..";
 import { LanguagesConfig } from "./languages";
 import { fetchWASIFS } from "../utils";
 
@@ -91,7 +91,7 @@ export type RunConfig = {
   onStatusChanged?: (status: RunStatus) => void;
   onWorkerCreated?: (host: WorkerHost) => void;
   output?: WriteFn | OutputConfig;
-  packages?: PackageWorkspace | PackageList;
+  packages?: PackageWorkspace | PackageRef[];
   signal?: AbortSignal;
 };
 
@@ -126,7 +126,7 @@ export async function run(
   }
 
   /* Download packages */
-  const filesystem = await context.packages.build(config);
+  const filesystem = await context.packages.build(config.signal);
   vfs = { ...vfs, ...filesystem };
 
   /* Place user code at /program file */

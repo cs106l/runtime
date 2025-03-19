@@ -1,121 +1,191 @@
 import type { WASIFS } from "@runno/wasi";
-import { SignalOptions } from "../utils";
 import type { PackageMeta } from "./schema";
+import combineAsyncIterators from "combine-async-iterators";
 
 export class PackageNotFoundError extends Error {}
 
-export abstract class PackageRegistry {
-  abstract get name(): string;
-  abstract search(
-    ...args: Parameters<PackageManager["search"]>
-  ): ReturnType<PackageManager["search"]>;
+/**
+ * A reference to a package or packages. It has the format:
+ *
+ * ```
+ * [<registry>:]<package_name>[@<version>]
+ * ```
+ *
+ * For example, all of the following are valid package references:
+ *
+ * ```
+ * numpy
+ * numpy
+ * base:numpy
+ * numpy@1.0.0
+ * base:numpy@>=1.0.0
+ * ```
+ */
+export type PackageRef = string;
 
-  abstract resolve(
-    ...args: Parameters<PackageManager["resolve"]>
-  ): ReturnType<PackageManager["resolve"]>;
+export type DecodedPackageRef = {
+  name: string;
+  registry?: string;
+  version?: string;
+};
 
-  abstract load(...args: Parameters<PackageManager["load"]>): ReturnType<PackageManager["load"]>;
+export abstract class Package {
+  constructor(public readonly meta: PackageMeta) {}
+  abstract load(signal?: AbortSignal): Promise<WASIFS>;
+
+  get ref(): PackageRef {
+    return Package.encodeRef({
+      name: this.meta.name,
+      version: this.meta.version,
+      registry: this.meta.registry,
+    });
+  }
+
+  static encodeRef({ name, version, registry }: DecodedPackageRef): string {
+    const reg = registry ? `${registry}:` : "";
+    const ver = version ? `@${version}` : "";
+    return `${reg}${name}${ver}`;
+  }
+
+  static decodeRef(ref: PackageRef): DecodedPackageRef {
+    ref = ref.trim();
+    if (ref.startsWith(":") || ref.endsWith("@")) throw new PackageNotFoundError(ref);
+    if (ref.startsWith("@")) return { name: ref };
+
+    let colon = ref.indexOf(":");
+    if (colon < 0) colon = 0;
+    const registry = ref.substring(0, colon).trim() || undefined;
+
+    let at = ref.lastIndexOf("@");
+    if (at < 0) at = ref.length;
+    if (ref.substring(colon + 1, at).trim().length == 0) at = ref.length;
+    const version = ref.substring(at).trim() || undefined;
+
+    const name = ref.substring(colon + 1, at);
+    return { registry, name, version };
+  }
 }
 
-export type PackageSearchOptions = {
+export abstract class PackageRegistry {
+  abstract get name(): string;
+
+  abstract search(query: string, options?: RegistrySearchOptions): AsyncIterableIterator<Package>;
+
+  /**
+   * Attempts to find the metadata for a package.
+   *
+   * @param name      The name of the package
+   * @param version   A version or version range to match against, if provided
+   * @returns         A promise that resolves with the `PackageMeta` if it could be found,
+   *                  or `null` if no package could be found
+   *
+   * #### Note to Implementers
+   *
+   * This function implements package resolution at the registry level.
+   * It returns a `Package` that encapsulates both the package metadata and also
+   * how to to download the package to the virtual filesystem at a later point, if desired.
+   *
+   * `name` refers to the package's name, and it is expected (although not enforced) that the
+   * returned loader's `meta.name` will have this value. Similarly, `meta.registry` should match
+   * this registry's name.
+   *
+   * `version` is the raw version string supplied to `PackageManager.resolve` (i.e. everything
+   * after the "@" character, if present) and is not guarantee to conform to any particular versioning standard.
+   * It is up to you to determine the semantics and handling for package versions.
+   *
+   * If your registry uses semantic versioning, for instance, you could first verify that `version` is a
+   * valid semver and return `undefined` if it's not. `version` might not refer to a specific
+   * package version: it could indicate a version range as well, in which case this function might implement
+   * logic to determine which version of a package is best matched by `version` among multiple
+   * alternatives. Again, it is up to you how you want to handle versioning.
+   */
+  abstract resolve(name: string, version?: string, signal?: AbortSignal): Promise<Package | null>;
+}
+
+export type RegistrySearchOptions = {
+  signal?: AbortSignal;
+};
+
+export type PackageSearchOptions = RegistrySearchOptions & {
   /**
    * Restrict search to these registries
    */
   registries?: string[];
-
-  /**
-   * Try to match packages whose `name` matches this pattern.
-   *
-   * **Note:** This is only a suggestion.
-   *  Package registries are free to ignore this if it is inconvient/impossible to implement this query.
-   *  The base registry will always respect this, however.
-   */
-  name?: RegExp;
 };
 
 export class PackageManager {
   registries: readonly PackageRegistry[];
 
-  /* Cache of previously resolved packages */
-  private resolved = new Map<string, PackageMeta>();
-
   constructor(...registries: PackageRegistry[]) {
     this.registries = registries;
   }
 
-  async search(label: string, options?: PackageSearchOptions): Promise<PackageMeta[]> {
+  async *search(query: string, options?: PackageSearchOptions): AsyncIterableIterator<Package> {
     options ??= {};
-    const all = await Promise.all(
-      this.registries
-        .filter((r) => options.registries?.includes(r.name) ?? true)
-        .map((r) => r.search(label, options)),
-    );
-    console.assert(
-      !all.some((packages, idx) => packages.some((p) => p.registry !== this.registries[idx].name)),
-      "PackageMeta must have same registry name as registry from which it originates",
-    );
-    return all.flat();
+    options.signal?.throwIfAborted();
+
+    const active = this.activeRegistries(options.registries);
+    const queries = active.map((r) => r.search(query, options));
+
+    for await (const pkg of combineAsyncIterators(...queries)) {
+      options.signal?.throwIfAborted();
+      yield pkg;
+    }
   }
 
-  async resolve(name: string): Promise<PackageMeta> {
-    if (this.resolved.has(name)) return this.resolved.get(name)!;
+  async resolve(ref: PackageRef, signal?: AbortSignal): Promise<Package> {
+    signal?.throwIfAborted();
 
-    const results = await Promise.allSettled(this.registries.map((r) => r.resolve(name)));
+    const { registry, name, version } = Package.decodeRef(ref);
+    let active = this.activeRegistries(registry ? [registry] : undefined);
+    const results = await Promise.allSettled(active.map((a) => a.resolve(name, version, signal)));
 
-    const result = results.find((res, idx) => {
-      if (res.status !== "fulfilled") return false;
-      console.assert(
-        res.value.registry === this.registries[idx].name,
-        `Package ${res.value.name} must have same registry name as registry ${this.registries[idx].name} from which it originates`,
-      );
-      return true;
-    });
+    signal?.throwIfAborted();
 
-    if (result?.status === "fulfilled") {
-      this.resolved.set(name, result.value);
-      return result.value;
+    const failed = results.find((r) => r.status === "rejected");
+    if (failed) throw failed.reason;
+
+    for (const result of results) {
+      const success = result as PromiseFulfilledResult<Package>;
+      if (success.value) return success.value;
     }
 
-    throw new PackageNotFoundError(name);
-  }
-
-  async load(meta: PackageMeta, options?: SignalOptions): Promise<WASIFS> {
-    const registry = this.registries.find((r) => r.name === meta.registry);
-    if (!registry) throw new PackageNotFoundError(`No such registry: ${meta.registry}`);
-    return registry.load(meta, options);
+    throw new PackageNotFoundError(ref);
   }
 
   createWorkspace(): PackageWorkspace {
     return new PackageWorkspace(this);
   }
+
+  private activeRegistries(registries?: string[]) {
+    if (!registries) return this.registries;
+    return this.registries.filter((r) => registries.includes(r.name));
+  }
 }
 
-export type PackageList = (string | PackageMeta)[];
-
 export class PackageWorkspace {
-  installed: PackageMeta[] = [];
+  installed: Package[] = [];
 
   constructor(private manager: PackageManager) {}
 
-  async install(...packages: PackageList): Promise<void> {
-    await Promise.all(packages.map((pack) => this.installOne(pack)));
+  async install(...refs: PackageRef[]): Promise<void> {
+    await Promise.all(refs.map((pkg) => this.installOne(pkg)));
   }
 
-  private async installOne(pack: PackageList[0]): Promise<void> {
-    const meta = typeof pack === "string" ? await this.manager.resolve(pack) : pack;
-    const existing = this.installed.find((m) => m.name === meta.name);
-    if (existing) return;
-    this.installed.push(meta);
-
-    // Install dependencies recursively
-    if (meta.dependencies) await this.install(...meta.dependencies);
+  private async installOne(ref: PackageRef): Promise<void> {
+    // TODO: There is a race condition in this code.
+    // Conflicting packages will be handled in a non-deterministic way
+    // that depends on the order in which they finish resolving.
+    const pkg = await this.manager.resolve(ref);
+    const conflict = this.installed.find((p) => p.meta.name === pkg.meta.name);
+    if (conflict) return;
+    this.installed.push(pkg);
+    if (pkg.meta.dependencies) await this.install(...pkg.meta.dependencies);
   }
 
-  async build(options?: SignalOptions): Promise<WASIFS> {
-    const fsList = await Promise.all(
-      this.installed.map((meta) => this.manager.load(meta, options)),
-    );
-    return Object.assign({}, ...fsList);
+  async build(signal?: AbortSignal): Promise<WASIFS> {
+    const fs = await Promise.all(this.installed.map((p) => p.load(signal)));
+    return Object.assign({}, ...fs);
   }
 
   prefixCode(fs: WASIFS): string {
@@ -128,15 +198,15 @@ export class PackageWorkspace {
 
   private gatherText(
     fs: WASIFS,
-    path: (meta: PackageMeta) => string | undefined,
+    path: (pkg: PackageMeta) => string | undefined,
     appendMode: "append" | "prepend",
     delim: string = "\n",
   ) {
     const decoder = new TextDecoder();
     let code = "";
 
-    for (const meta of this.installed) {
-      const filePath = path(meta);
+    for (const pkg of this.installed) {
+      const filePath = path(pkg.meta);
       if (!filePath) continue;
       const file = fs[filePath];
       if (!file) continue;

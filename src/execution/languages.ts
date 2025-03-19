@@ -1,4 +1,4 @@
-import { BaseRegistry } from "../packages/BaseRegistry";
+import { BaseRegistry } from "../packages/registry/base";
 import type { LanguageConfiguration } from ".";
 import { Language, RunStatus } from "..";
 import { PackageManager } from "../packages";
