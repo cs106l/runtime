@@ -9,9 +9,9 @@ export type BundledPackageMeta = PackageMeta & {
   source: string;
 
   /**
-   * The build number of this package.
+   * The last commit when this package was built
    */
-  build: number;
+  sha: string;
 };
 
 export class BaseRegistry extends PackageRegistry {
@@ -33,7 +33,7 @@ export class BaseRegistry extends PackageRegistry {
     }
   }
 
-  async resolve(name: string, version: string, signal?: AbortSignal): Promise<Package | null> {
+  async resolve(name: string, _?: string, signal?: AbortSignal): Promise<Package | null> {
     const registry = await this.fetchRegistry(signal);
     const meta = registry.find((meta) => meta.name === name);
     if (!meta) return null;

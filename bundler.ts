@@ -12,7 +12,7 @@ import { parseArgs } from "util";
 
 import glob from "fast-glob";
 import { create as createTar } from "tar";
-import { BundledPackageMeta } from "./src/packages/registry/base";
+import { BaseRegistry, BundledPackageMeta } from "./src/packages/registry/base";
 
 const PackagesDir = "packages";
 const ManifestFiles = ["manifest.json", "manifest.ts", "manifest.js"];
@@ -29,12 +29,6 @@ export type Manifest = z.infer<typeof ManifestSchema>;
 const ManifestSchema = PackageMetaSchema.omit({
   registry: true, // Will be manually set
 }).extend({
-  /**
-   * A marker for when this package was bundled.
-   * Increment this number to trigger a rebuild/publish via CI on next commit.
-   */
-  build: z.number(),
-
   /**
    * Path to the directory that will become the package root in the virtual filesystem.
    * This path is relative to the package dir (i.e. the dir where this manifest lives).
@@ -69,51 +63,35 @@ function findManifestPaths(dir: string = PackagesDir): string[] {
   return manifests;
 }
 
-function getGitHubInfo() {
-  const remoteUrl = execSync("git config --get remote.origin.url").toString().trim();
-  const match = remoteUrl.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-  if (!match) throw new Error(`Invalid GitHub remote URL: ${remoteUrl}`);
-  const [, org, repo] = match;
-  return { org, repo };
-}
+const baseRegistries = new Map<Language, BaseRegistry>();
 
-const { org, repo } = getGitHubInfo();
-const registryCache = new Map<Language, PackageMeta[]>();
+async function getPublishedBuildSHA(manifestPath: string): Promise<string | null> {
+  const language = getManifestLanguage(manifestPath);
+  const packageName = path.basename(path.dirname(manifestPath));
 
-async function fetchPackageRegistry(language: Language): Promise<PackageMeta[]> {
-  if (registryCache.has(language)) return registryCache.get(language)!;
-
-  const url = `https://raw.githubusercontent.com/${org}/${repo}/dist/${language}/registry.json`;
-
-  try {
-    const res = await fetch(url);
-    if (res.status === 404) {
-      registryCache.set(language, []);
-      return [];
-    }
-
-    if (!res.ok) throw new Error(`Failed to fetch registry: ${res.status} ${res.statusText}`);
-
-    const data: PackageMeta[] = await res.json();
-    registryCache.set(language, data);
-    return data;
-  } catch (err) {
-    console.error(`Error fetching registry for ${language}:`, err);
-    throw err;
+  let registry = baseRegistries.get(language);
+  if (!registry) {
+    baseRegistries.set(language, new BaseRegistry(language));
+    registry = baseRegistries.get(language)!;
   }
-}
 
-async function getPublishedBuildVersion(language: Language, manifest: Manifest): Promise<number> {
-  const registry = await fetchPackageRegistry(language);
-  const meta = registry.find((meta) => meta.name === manifest.name);
-  return (meta as any)?.build ?? -1;
+  const pkg = await registry.resolve(packageName);
+  if (!pkg) return null;
+  return (pkg.meta as BundledPackageMeta).sha;
 }
 
 async function hasManifestChanged(manifestPath: string): Promise<boolean> {
-  const language = getManifestLanguage(manifestPath);
-  const manifest = await loadManifest(manifestPath);
-  const publishedBuild = await getPublishedBuildVersion(language, manifest);
-  return manifest.build > publishedBuild;
+  const sha = await getPublishedBuildSHA(manifestPath);
+  if (!sha) return true;
+
+  const dir = path.dirname(manifestPath);
+
+  try {
+    execSync(`git diff --exit-code ${sha} HEAD -- "${dir}"`);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 async function getChangedManifests(): Promise<string[]> {
@@ -215,7 +193,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   }
 
   const meta: BundledPackageMeta = {
-    build: manifest.build,
+    sha: execSync("git rev-parse HEAD").toString().trim(),
     name: manifest.name,
     label: manifest.label,
     description: manifest.description,

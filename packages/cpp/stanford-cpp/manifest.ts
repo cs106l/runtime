@@ -1,4 +1,4 @@
-import { exec, execSync, spawn } from "child_process";
+import { execSync, spawn } from "child_process";
 import { promisify } from "util";
 import { Manifest } from "../../../bundler";
 import path from "path";
@@ -8,7 +8,6 @@ import { getLanguageConfig, Language } from "../../../src";
 
 const manifest: Manifest = {
   name: "stanford-cpp",
-  build: 0,
   version: "0.1.0",
   rootDir: "src",
   files: ["**/*.h", "**/*.cpp"],
