@@ -59,7 +59,7 @@ export abstract class Package {
     let at = ref.lastIndexOf("@");
     if (at < 0) at = ref.length;
     if (ref.substring(colon + 1, at).trim().length == 0) at = ref.length;
-    const version = ref.substring(at).trim() || undefined;
+    const version = ref.substring(at + 1).trim() || undefined;
 
     const name = ref.substring(colon + 1, at);
     return { registry, name, version };
@@ -140,6 +140,7 @@ export class PackageManager {
     if (this.cache.has(ref)) return this.cache.get(ref)!;
 
     const { registry, name, version } = Package.decodeRef(ref);
+    console.log(registry, name, version);
     let active = this.activeRegistries(registry ? [registry] : undefined);
     const results = await Promise.allSettled(active.map((a) => a.resolve(name, version, signal)));
 
