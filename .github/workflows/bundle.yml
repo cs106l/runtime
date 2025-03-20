@@ -39,11 +39,11 @@ jobs:
   # Step 2: Spin up jobs for each changed manifest
   bundle-manifests:
     needs: identify-changes
-    continue-on-error: true
     runs-on: ubuntu-latest
     if: ${{ needs.identify-changes.outputs.manifests != '[]' }}
 
     strategy:
+      fail-fast: false
       matrix:
         manifest: ${{ fromJson(needs.identify-changes.outputs.manifests) }}
       max-parallel: 1
