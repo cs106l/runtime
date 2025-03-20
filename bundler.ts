@@ -169,7 +169,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   const langDir = path.join(outputDir, lang);
 
   const manifestExportName = `${manifest.name}@${manifest.version}`;
-  fs.mkdirSync(path.basename(path.join(langDir, manifestExportName)), { recursive: true });
+  fs.mkdirSync(path.dirname(path.join(langDir, manifestExportName)), { recursive: true });
 
   await createTar(
     {
