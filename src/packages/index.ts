@@ -114,6 +114,8 @@ export type PackageSearchOptions = RegistrySearchOptions & {
 };
 
 export class PackageManager {
+  private cache: Map<PackageRef, Package> = new Map();
+
   registries: readonly PackageRegistry[];
 
   constructor(...registries: PackageRegistry[]) {
@@ -135,6 +137,7 @@ export class PackageManager {
 
   async resolve(ref: PackageRef, signal?: AbortSignal): Promise<Package> {
     signal?.throwIfAborted();
+    if (this.cache.has(ref)) return this.cache.get(ref)!;
 
     const { registry, name, version } = Package.decodeRef(ref);
     let active = this.activeRegistries(registry ? [registry] : undefined);
@@ -147,7 +150,10 @@ export class PackageManager {
 
     for (const result of results) {
       const success = result as PromiseFulfilledResult<Package>;
-      if (success.value) return success.value;
+      if (success.value) {
+        this.cache.set(ref, success.value);
+        return success.value;
+      }
     }
 
     throw new PackageNotFoundError(ref);

@@ -1,6 +1,6 @@
 {
   "name": "@cs106l/runtime",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
