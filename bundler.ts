@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { Language, PackageMeta, PackageMetaSchema } from "./src";
+import { Language, PackageMetaSchema } from "./src";
 
 import fs from "fs";
 import path from "path";
