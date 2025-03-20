@@ -168,13 +168,14 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   const lang = getManifestLanguage(manifestPath);
   const langDir = path.join(outputDir, lang);
 
-  if (!fs.existsSync(langDir)) fs.mkdirSync(langDir, { recursive: true });
+  const manifestExportName = `${manifest.name}@${manifest.version}`;
+  fs.mkdirSync(path.basename(path.join(langDir, manifestExportName)), { recursive: true });
 
   await createTar(
     {
       cwd,
       gzip: true,
-      file: path.join(langDir, `${manifest.name}.tar.gz`),
+      file: path.join(langDir, `${manifestExportName}.tar.gz`),
       prefix: packagePrefix,
       noDirRecurse: true,
       portable: true,
@@ -195,13 +196,14 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   }
 
   const meta: BundledPackageMeta = {
+    ts: Date.now(),
     sha: execSync("git rev-parse HEAD").toString().trim(),
     name: manifest.name,
     label: manifest.label,
     description: manifest.description,
     version: manifest.version,
     registry: "base",
-    source: `${sourceUrl}/${lang}/${manifest.name}.tar.gz`,
+    source: `${sourceUrl}/${lang}/${manifestExportName}.tar.gz`,
     dependencies: manifest.dependencies,
     runtime: manifest.runtime
       ? {
@@ -214,7 +216,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
 
   /* The build number is not part of the PackageMeta,
    * but we include it so that CI can determine when to re-build */
-  fs.writeFileSync(path.join(langDir, `${manifest.name}.json`), JSON.stringify(meta));
+  fs.writeFileSync(path.join(langDir, `${manifestExportName}.json`), JSON.stringify(meta));
 }
 
 function writeRegistry(lang: Language, outputDir: string) {
@@ -224,7 +226,7 @@ function writeRegistry(lang: Language, outputDir: string) {
   const files = fs
     .readdirSync(langDir)
     .filter((file) => file.endsWith(".json") && file !== "registry.json");
-  const registry: any[] = [];
+  const registry: BundledPackageMeta[] = [];
 
   for (const file of files) {
     const filePath = path.join(langDir, file);
