@@ -3,7 +3,7 @@ import { Manifest } from "../../../bundler";
 import path from "path";
 import fs from "fs";
 import { globSync } from "fast-glob";
-import { getLanguageConfig, Language } from "../../../src";
+import { configure, Language } from "../../../src";
 import promiseSpawn from "@npmcli/promise-spawn";
 
 const manifest: Manifest = {
@@ -76,7 +76,7 @@ function installWasiSdk(release: string = "25", version: string = "25.0") {
 
   process.env.WASI_SDK_PATH = path.resolve("wasi-sdk");
 
-  const sysrootUrl = getLanguageConfig(Language.Cpp).filesystem;
+  const sysrootUrl = configure(Language.Cpp).filesystem;
 
   if (sysrootUrl) {
     /* Rather than use the WASI SDK sysroot, we'd prefer to use the same sysroot

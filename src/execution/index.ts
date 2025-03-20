@@ -62,7 +62,7 @@ export type LanguageConfiguration = {
   /** An optional URL to a .tar.gz containing the initial contents of the filesystem for this language */
   filesystem?: string;
   steps: [LanguageStep, ...LanguageStep[]];
-  packages?: PackageManager;
+  packages: PackageManager;
 };
 
 /*
@@ -195,7 +195,7 @@ async function createContext(
   else write = output.write ?? (() => {});
 
   let packages: PackageWorkspace;
-  const pm = langConfig.packages ?? new PackageManager();
+  const pm = langConfig.packages;
 
   if (config.packages) {
     if (Array.isArray(config.packages)) {
@@ -220,6 +220,6 @@ function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
   return URL.createObjectURL(new Blob([file.content], { type: "application/wasm" }));
 }
 
-export function getLanguageConfig(language: Language): LanguageConfiguration {
+export function configure(language: Language): LanguageConfiguration {
   return LanguagesConfig[language];
 }

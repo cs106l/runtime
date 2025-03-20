@@ -142,7 +142,6 @@ async function loadManifest(manifestPath: string): Promise<Manifest> {
   }
 
   const manifest = ManifestSchema.safeParse(rawManifest);
-  console.log(manifest);
   if (!manifest.success)
     throw new Error(
       `Failed to load manifest at ${manifestPath}. Got the following errors:\n\n${manifest.error.toString()}`,
@@ -217,6 +216,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   /* The build number is not part of the PackageMeta,
    * but we include it so that CI can determine when to re-build */
   fs.writeFileSync(path.join(langDir, `${manifestExportName}.json`), JSON.stringify(meta));
+  console.log("Bundled package: ", meta);
 }
 
 function writeRegistry(lang: Language, outputDir: string) {
