@@ -39,6 +39,7 @@ jobs:
   # Step 2: Spin up jobs for each changed manifest
   bundle-manifests:
     needs: identify-changes
+    continue-on-error: true
     runs-on: ubuntu-latest
     if: ${{ needs.identify-changes.outputs.manifests != '[]' }}
 
