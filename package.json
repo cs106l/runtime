@@ -27,8 +27,8 @@
   },
   "homepage": "https://github.com/cs106l/runtime#readme",
   "dependencies": {
+    "@cs106l/wasi": "^0.7.1",
     "@obsidize/tar-browserify": "^5.2.0",
-    "@runno/wasi": "^0.7.0",
     "combine-async-iterators": "^3.0.0",
     "pako": "^2.1.0",
     "zod": "^3.24.2"

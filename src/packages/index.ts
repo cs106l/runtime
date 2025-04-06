@@ -1,4 +1,4 @@
-import type { WASIFS } from "@runno/wasi";
+import type { WASIFS } from "@cs106l/wasi";
 import type { PackageMeta } from "./schema";
 import combineAsyncIterators from "combine-async-iterators";
 

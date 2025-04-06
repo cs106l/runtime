@@ -1,4 +1,4 @@
-import { WASIFS } from "@runno/wasi";
+import { WASIFS } from "@cs106l/wasi";
 
 import { inflate } from "pako";
 import { Archive } from "@obsidize/tar-browserify";

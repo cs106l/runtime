@@ -4,7 +4,7 @@ import {
   type WASIFS,
   WASIWorkerHost,
   WASIWorkerHostKilledError,
-} from "@runno/wasi";
+} from "@cs106l/wasi";
 import { Language, RunStatus, PackageManager } from "..";
 import type { PackageRef, PackageWorkspace } from "..";
 import { LanguagesConfig } from "./languages";
