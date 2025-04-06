@@ -2,14 +2,13 @@ import {
   type WASIExecutionResult,
   type WASIFile,
   type WASIFS,
-  WASIWorkerHost,
-  WASIWorkerHostKilledError,
 } from "@cs106l/wasi";
 import { Language, RunStatus } from "../enums";
 import { PackageManager } from "../packages";
 import type { PackageRef, PackageWorkspace } from "../packages";
 import { LanguagesConfig } from "./languages";
 import { fetchWASIFS } from "../utils";
+import { WASIWorkerHost, WASIWorkerHostKilledError } from "./wasi-host";
 
 /*
  * ============================================================================
@@ -74,7 +73,7 @@ export type LanguageConfiguration = {
 
 export type WriteFn = (data: string) => void;
 export type CanvasOutput = {
-  create: (width: number, height: number) => OffscreenCanvas
+  create: (width: number, height: number) => Promise<OffscreenCanvas>
 }
 
 export type OutputConfig = {
@@ -166,6 +165,7 @@ export async function run(
       fs: hostConfig.fs,
       stdout: context.write,
       stderr: context.write,
+      canvas: config.output && "canvas" in config.output ? config.output.canvas : undefined
     });
 
     config.onWorkerCreated?.(host);

@@ -2,13 +2,15 @@ import { WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
 import type { HostMessage, WorkerMessage } from "./wasi-worker";
 
 import WASIWorker from "./wasi-worker?worker&inline";
+import { CanvasOutput } from ".";
 
-function sendMessage(worker: Worker, message: WorkerMessage) {
-  worker.postMessage(message);
+function sendMessage(worker: Worker, message: WorkerMessage, options?: StructuredSerializeOptions) {
+  worker.postMessage(message, options);
 }
 
 type WASIWorkerHostContext = Partial<Omit<WASIContextOptions, "stdin" | "fs">> & {
   fs: WASIFS;
+  canvas?: CanvasOutput;
 };
 
 export class WASIWorkerHostKilledError extends Error {}
@@ -48,6 +50,23 @@ export class WASIWorkerHost {
           case "stderr":
             this.context.stderr?.(message.text);
             break;
+          case "canvasRequested":
+            this.context.canvas?.create(message.width, message.height).then((canvas) => {
+              if (!this.worker) return;
+              sendMessage(
+                this.worker,
+                {
+                  target: "client",
+                  type: "canvasReceived",
+                  id: message.id,
+                  canvas,
+                },
+                {
+                  transfer: [canvas],
+                },
+              );
+            });
+            break;
           case "result":
             resolve(message.result);
             break;
@@ -69,6 +88,8 @@ export class WASIWorkerHost {
         env: this.context.env,
         fs: this.context.fs,
         isTTY: this.context.isTTY,
+
+        canvas: this.context.canvas ? {} : undefined,
       });
     }).then((result) => {
       this.worker?.terminate();

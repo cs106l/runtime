@@ -1,5 +1,6 @@
-import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
-import { CanvasDrive } from "./drive";
+import { WASI, WASIContextOptions, WASIDrive, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
+import { CanvasDrive, CanvasDriveOptions, CanvasID } from "./drive";
+import { CanvasOutput } from ".";
 
 type StartWorkerMessage = {
   target: "client";
@@ -7,9 +8,19 @@ type StartWorkerMessage = {
   binaryURL: string;
   stdinBuffer: SharedArrayBuffer;
   fs: WASIFS;
+  canvas?: Omit<CanvasOutput, "create">;
 } & Partial<Omit<WASIContextOptions, "stdin" | "stdout" | "stderr" | "debug" | "fs">>;
 
-export type WorkerMessage = StartWorkerMessage;
+type CanvasReceivedMessage = {
+  target: "client",
+  type: "canvasReceived",
+  id: CanvasID,
+  canvas: OffscreenCanvas
+};
+
+export type WorkerMessage = 
+  | StartWorkerMessage
+  | CanvasReceivedMessage;
 
 type StdoutHostMessage = {
   target: "host";
@@ -38,11 +49,20 @@ type CrashHostMessage = {
   };
 };
 
+type CanvasRequestedMessage = {
+  target: "host";
+  type: "canvasRequested";
+  id: CanvasID;
+  width: number;
+  height: number;
+}
+
 export type HostMessage =
   | StdoutHostMessage
   | StderrHostMessage
   | ResultHostMessage
-  | CrashHostMessage;
+  | CrashHostMessage
+  | CanvasRequestedMessage;
 
 onmessage = async (ev: MessageEvent) => {
   const data = ev.data as WorkerMessage;
@@ -75,7 +95,10 @@ onmessage = async (ev: MessageEvent) => {
           error,
         });
       }
+      break;
 
+    case "canvasReceived":
+      canvasDrive?.receiveCanvas(data.id, data.canvas);
       break;
   }
 };
@@ -84,13 +107,35 @@ function sendMessage(message: HostMessage) {
   postMessage(message);
 }
 
-async function start(context: StartWorkerMessage) {
-  return WASI.start(fetch(context.binaryURL), {
-    ...context,
+let canvasDrive: CanvasDrive | null = null;
+
+function createDrive(message: StartWorkerMessage) {
+  if (!message.canvas) return new WASIDrive(message.fs);
+
+  const config: CanvasDriveOptions = {
+    ...message.canvas,
+    requestCanvas: (id, width, height) => {
+      sendMessage({
+        target: "host",
+        type: "canvasRequested",
+        id,
+        width,
+        height,
+      });
+    }
+  };
+
+  canvasDrive = new CanvasDrive(config, message.fs);
+  return canvasDrive;
+}
+
+async function start(message: StartWorkerMessage) {
+  return WASI.start(fetch(message.binaryURL), {
+    ...message,
     stdout: sendStdout,
     stderr: sendStderr,
-    stdin: (maxByteLength) => getStdin(maxByteLength, context.stdinBuffer),
-    fs: new CanvasDrive(context.fs ?? {}),
+    stdin: (maxByteLength) => getStdin(maxByteLength, message.stdinBuffer),
+    fs: createDrive(message),
   });
 }
 
