@@ -98,7 +98,7 @@ onmessage = async (ev: MessageEvent) => {
       break;
 
     case "canvasReceived":
-      canvasDrive?.receiveCanvas(data.id, data.canvas);
+      drive?.receiveCanvas(data.id, data.canvas);
       break;
   }
 };
@@ -107,11 +107,9 @@ function sendMessage(message: HostMessage) {
   postMessage(message);
 }
 
-let canvasDrive: CanvasDrive | null = null;
+let drive: CanvasDrive | null = null;
 
 function createDrive(message: StartWorkerMessage) {
-  if (!message.canvas) return new WASIDrive(message.fs);
-
   const config: CanvasDriveOptions = {
     ...message.canvas,
     requestCanvas: (id, width, height) => {
@@ -125,8 +123,8 @@ function createDrive(message: StartWorkerMessage) {
     }
   };
 
-  canvasDrive = new CanvasDrive(config, message.fs);
-  return canvasDrive;
+  drive = new CanvasDrive(config, message.fs);
+  return drive;
 }
 
 async function start(message: StartWorkerMessage) {
