@@ -1,6 +1,6 @@
 import { BaseRegistry } from "../packages/registry/base";
 import type { LanguageConfiguration } from ".";
-import { Language, RunStatus } from "..";
+import { Language, RunStatus } from "../enums";
 import { PackageManager } from "../packages";
 
 const Cpp: LanguageConfiguration = {

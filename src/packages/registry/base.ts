@@ -1,4 +1,4 @@
-import { Language } from "../..";
+import { Language } from "../../enums";
 import { PackageMeta, Package, PackageRegistry, PackageSearchOptions } from "..";
 import { ArchivePackage } from "../../utils";
 

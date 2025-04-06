@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Language } from "..";
+import { Language } from "../enums";
 
 export const BaseRuntimeSchema = z.object({
   /**
