@@ -53,7 +53,7 @@ class StudentCode:
         self.module_name = code_file.stem
         loader = SourceFileLoader(self.module_name, code_file.as_posix())
         spec = importlib.util.spec_from_loader(self.module_name, loader)
-        
+
         assert spec is not None
         try:
             module_loader = spec.loader
@@ -188,7 +188,6 @@ class KarelApplication:
         self.canvas = KarelCanvas(
             self.canvas_width,
             self.canvas_height,
-            self.master,
             world=self.world,
             karel=self.karel,
         )
