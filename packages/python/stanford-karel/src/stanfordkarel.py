@@ -92,7 +92,7 @@ def pick_beeper() -> None:
 
 @karel_action_decorator
 def paint_corner(color: str) -> None:
-    del color
+    return __karel.paint_corner(color)
 
 
 def front_is_clear() -> bool:
