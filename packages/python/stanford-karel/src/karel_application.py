@@ -199,7 +199,7 @@ class KarelApplication:
             # execute Karel function
             karel_fn()
             # redraw canvas with updated state of the world
-            self.canvas.redraw_all()
+            self.canvas.draw()
             # delay by specified amount
             # TODO: This should be replaced by time.sleep once the environment supports it
             HTMLCanvas.sleep(500)
