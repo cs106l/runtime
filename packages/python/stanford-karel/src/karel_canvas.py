@@ -105,7 +105,7 @@ class KarelCanvas(HTMLCanvas):
         self,
         points: list[float],
         fill: str = "foreground",
-        outline: bool = True
+        outline: bool = False
     ) -> None:
         if len(points) < 4 or len(points) % 2 != 0:
             raise ValueError("Points must contain an even number of coordinates and at least one segment.")
