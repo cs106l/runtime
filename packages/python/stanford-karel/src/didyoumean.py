@@ -113,8 +113,9 @@ def get_suggestions_for_exception(
         if isinstance(value, error_type)
         for func in functions
     )
+    suggestions = list(suggestions)
     if suggestions:
-        return f". Did you mean {', '.join(list(suggestions))}?"
+        return f"Did you mean {', '.join(suggestions)}?"
     return ""
 
 
@@ -139,36 +140,6 @@ def suggest_name_as_name_typo(name: str, objdict: dict[str, Any]) -> Iterator[st
         yield f"'{word}'"  # + " (" + objdict[name][0].scope + ")"
 
 
-def add_string_to_exception(value: Exception, string: str) -> None:
-    """
-    Add string to the exception parameter.
-
-    The point is to have the string visible when the exception is printed or converted
-    to string - may it be via `str()`, `repr()` or when the exception is uncaught and
-    displayed (which seems to use `str()`). In an ideal world, one just needs to update
-    `args` but apparently it is not enough for SyntaxError, IOError, etc where other
-    attributes (`msg`, `strerror`, `reason`, etc) are to be updated too (for `str()`,
-    not for `repr()`). Also, elements in args might not be strings or args might me
-    empty so we add to the first string and add the element otherwise.
-    """
-    if not isinstance(value.args, tuple):
-        raise TypeError
-    if string:
-        lst_args = list(value.args)
-        for i, arg in enumerate(lst_args):
-            if isinstance(arg, str):
-                lst_args[i] = arg + string
-                break
-        else:
-            # if no string arg, add the string anyway
-            lst_args.append(string)
-        value.args = tuple(lst_args)
-        for attr in ("msg", "strerror", "reason"):
-            attrval = getattr(value, attr, None)
-            if attrval is not None:
-                setattr(value, attr, attrval + string)
-
-
 def get_last_frame(traceback: TracebackType | None) -> FrameType | None:
     """Extract last frame from a traceback."""
     # In some rare case, the given traceback might be None
@@ -179,8 +150,10 @@ def get_last_frame(traceback: TracebackType | None) -> FrameType | None:
     return traceback.tb_frame
 
 
-def add_did_you_mean(e: Exception) -> None:
+def raise_did_you_mean(e: Exception) -> None:
     """Hook to be substituted to sys.excepthook to enhance exceptions."""
     if isinstance(e, NameError):
         suggestions = get_suggestions_for_exception(e, e.__traceback__)
-        add_string_to_exception(e, suggestions)
+        if suggestions:
+            raise Exception(suggestions) from e
+    raise e

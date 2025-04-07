@@ -21,7 +21,7 @@ from pathlib import Path
 from canvas import HTMLCanvas
 from .karel_program import KarelException, KarelProgram
 from .karel_canvas import KarelCanvas
-from .didyoumean import add_did_you_mean
+from .didyoumean import raise_did_you_mean
 
 
 def __get_world_file() -> str:
@@ -50,7 +50,7 @@ __canvas = KarelCanvas(600, 400, world=__karel.world, karel=__karel)
 
 def __excepthook(exctype, value, traceback):
     if exctype in [KarelException, NameError, RuntimeError]:
-        add_did_you_mean(value)
+        raise_did_you_mean(value)
     sys.__excepthook__(exctype, value, traceback)
 sys.excepthook = __excepthook
 
