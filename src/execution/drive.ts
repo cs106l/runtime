@@ -8,7 +8,7 @@ import {
   CanvasEventSchema,
 } from "./canvas";
 
-export class CanvasDrive extends WASIDrive {
+export class CanvasAwareDrive extends WASIDrive {
   private readers = new Map<CanvasAction, ByteReader>();
   private writers = new Map<CanvasAction, ByteWriter>();
 

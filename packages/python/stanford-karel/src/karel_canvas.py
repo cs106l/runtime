@@ -104,12 +104,35 @@ class KarelCanvas(HTMLCanvas):
         self,
         points: list[float],
         fill: str = "black",
-        outline: str = "black",
-        tags: str = "karel",
+        outline: bool = True
     ) -> None:
-        super().create_polygon(
-            *points, fill=fill, outline=outline, width=KAREL_LINE_WIDTH, tags=tags
-        )
+        if len(points) < 4 or len(points) % 2 != 0:
+            raise ValueError("Points must contain an even number of coordinates and at least one segment.")
+
+        self.beginPath()
+        self.moveTo(points[0], points[1])
+        for i in range(2, len(points), 2):
+            self.lineTo(points[i], points[i + 1])
+        self.lineTo(points[0], points[1])
+
+        if fill:
+            self.fillStyle = fill
+            self.fill()
+
+        if outline:
+            self.stroke()
+
+    def create_line(self, x1: float, y1: float, x2: float, y2: float, width: float=1):
+        self.beginPath()
+        self.moveTo(x1, y1)
+        self.lineTo(x2, y2)
+        self.lineWidth = width
+        self.stroke()
+
+    def create_text(self, x: float, y: float, text: str, font: str = ""):
+        if font:
+            self.font = font
+        self.fillText(text, x, y)
 
     def draw(self) -> None:
         self.reset()
@@ -166,13 +189,13 @@ class KarelCanvas(HTMLCanvas):
         for avenue in range(1, self.world.num_avenues + 1):
             label_x = self.calculate_corner_x(avenue)
             label_y = self.bottom_y + LABEL_OFFSET
-            self.create_text(label_x, label_y, text=str(avenue), font="Arial 10")
+            self.create_text(label_x, label_y, text=str(avenue), font="10px Arial")
 
         # Label the street axes
         for street in range(1, self.world.num_streets + 1):
             label_x = self.left_x - LABEL_OFFSET
             label_y = self.calculate_corner_y(street)
-            self.create_text(label_x, label_y, text=str(street), font="Arial 10")
+            self.create_text(label_x, label_y, text=str(street), font="10px Arial")
 
     def draw_corners(self) -> None:
         # Draw all corner markers in the world
@@ -187,14 +210,12 @@ class KarelCanvas(HTMLCanvas):
                         corner_y - CORNER_SIZE,
                         corner_x,
                         corner_y + CORNER_SIZE,
-                        tags="corner",
                     )
                     self.create_line(
                         corner_x - CORNER_SIZE,
                         corner_y,
                         corner_x + CORNER_SIZE,
                         corner_y,
-                        tags="corner",
                     )
                 else:
                     self.create_rectangle(
@@ -204,7 +225,7 @@ class KarelCanvas(HTMLCanvas):
                         corner_y + self.cell_size / 2,
                         fill=color,
                         tags="corner",
-                        outline="",
+                        outline=False,
                     )
 
     def draw_all_beepers(self) -> None:
@@ -230,11 +251,11 @@ class KarelCanvas(HTMLCanvas):
             corner_x - beeper_radius,
             corner_y,
         ]
-        self.create_default_polygon(points, fill="light grey", tags="beeper")
+        self.create_default_polygon(points, fill="lightgray")
 
         if count > 1:
             self.create_text(
-                corner_x, corner_y, text=str(count), font="Arial 12", tags="beeper"
+                corner_x, corner_y, text=str(count), font="12px Arial"
             )
 
     def draw_all_walls(self) -> None:
@@ -253,7 +274,6 @@ class KarelCanvas(HTMLCanvas):
                 corner_x + self.cell_size / 2,
                 corner_y - self.cell_size / 2,
                 width=LINE_WIDTH,
-                tags="wall",
             )
         if direction == Direction.SOUTH:
             self.create_line(
@@ -262,7 +282,6 @@ class KarelCanvas(HTMLCanvas):
                 corner_x + self.cell_size / 2,
                 corner_y + self.cell_size / 2,
                 width=LINE_WIDTH,
-                tags="wall",
             )
         if direction == Direction.EAST:
             self.create_line(
@@ -271,7 +290,6 @@ class KarelCanvas(HTMLCanvas):
                 corner_x + self.cell_size / 2,
                 corner_y + self.cell_size / 2,
                 width=LINE_WIDTH,
-                tags="wall",
             )
         if direction == Direction.WEST:
             self.create_line(
@@ -280,7 +298,6 @@ class KarelCanvas(HTMLCanvas):
                 corner_x - self.cell_size / 2,
                 corner_y + self.cell_size / 2,
                 width=LINE_WIDTH,
-                tags="wall",
             )
 
     def draw_karel(self) -> None:
@@ -385,7 +402,7 @@ class KarelCanvas(HTMLCanvas):
         entire_body_points = outer_points + inner_points
 
         # First draw the filled non-convex polygon
-        self.create_default_polygon(entire_body_points, fill="white", outline="")
+        self.create_default_polygon(entire_body_points, fill="white")
 
         # Then draw the transparent exterior edges of Karel's body
         self.create_default_polygon(outer_points, fill="")

@@ -67,6 +67,14 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   ...Property("lineWidth", z.number()),
   ...Property("fillStyle", z.string()),
   ...Property("strokeStyle", z.string()),
+  ...Property("font", z.string()),
+  ComplexArgs(
+    "fillText",
+    z.union([
+      z.tuple([z.string(), z.number(), z.number()]),
+      z.tuple([z.string(), z.number(), z.number(), z.number()]),
+    ]),
+  ),
 
   Nullary("reset"),
 
@@ -78,6 +86,29 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   Args("lineTo", z.number(), z.number()),
   Nullary("stroke"),
 ]);
+
+/**
+ * This is an optimization--since these actions return void, we don't need to wait for data
+ * to be communicated back, saving on serialization overhead.
+ */
+export const voidActions: CanvasAction[] = [
+  "sleep",
+  "delete",
+  "set_width",
+  "set_height",
+  "set_lineWidth",
+  "set_fillStyle",
+  "set_strokeStyle",
+  "set_font",
+  "fillText",
+  "reset",
+  "fill",
+  "fillRect",
+  "beginPath",
+  "moveTo",
+  "lineTo",
+  "stroke",
+];
 
 export const allowedCanvasActions = CanvasEventSchema.options.map((o) => o.shape.action.value);
 export type BaseCanvasEvent = z.infer<typeof CanvasEventSchema>;
@@ -142,6 +173,13 @@ export class CanvasContainer implements CanvasEventHandler {
         return this.context.fill(...args);
       case "fillRect":
         return this.context.fillRect(...event.args);
+      case "fillText":
+        if (event.args.length === 3) return this.context.fillText(...event.args);
+        return this.context.fillText(...event.args);
+      case "get_font":
+        return this.context.font;
+      case "set_font":
+        return void (this.context.font = event.args[0]);
       case "beginPath":
         return this.context.beginPath();
       case "lineTo":

@@ -17,6 +17,36 @@ class HTMLCanvas:
     def sleep(ms: float):
         HTMLCanvas.__static_dispatch(None, "sleep", ms, result=False)
 
+    @property
+    def width(self): return self.__dispatch("get_width")
+
+    @width.setter
+    def width(self, value): self.__dispatch("set_width", value, result=False)
+
+    @property
+    def height(self): return self.__dispatch("get_height")
+
+    @height.setter
+    def height(self, value): self.__dispatch("set_height", value, result=False)
+
+    @property
+    def lineWidth(self): return self.__dispatch("get_lineWidth")
+
+    @lineWidth.setter
+    def lineWidth(self, value): self.__dispatch("set_lineWidth", value, result=False)
+
+    @property
+    def fillStyle(self): return self.__dispatch("get_fillStyle")
+
+    @fillStyle.setter
+    def fillStyle(self, value): self.__dispatch("set_fillStyle", value, result=False)
+
+    @property 
+    def strokeStyle(self): return self.__dispatch("get_strokeStyle")
+
+    @strokeStyle.setter
+    def strokeStyle(self, value): self.__dispatch("set_strokeStyle", value, result=False)
+
     def fill(self, fillRule: str = None):
         if fillRule is None: self.__dispatch("fill", result=False)
         else: self.__dispatch("fill", fillRule, result=False)
@@ -26,6 +56,10 @@ class HTMLCanvas:
     
     def fillRect(self, x: float, y: float, width: float, height: float):
         self.__dispatch("fillRect", x, y, width, height, result=False)
+
+    def fillText(self, x: float, y: float, text: str, maxWidth: float = None):
+        if maxWidth is None: self.__dispatch("fillText", x, y, text, result=False)
+        else: self.__dispatch("fillText", x, y, text, maxWidth, result=False)
 
     def beginPath(self):
         self.__dispatch("beginPath", result=False)
@@ -72,28 +106,3 @@ class HTMLCanvas:
         
     def __dispatch(self, action, *args, result: bool = True):
         return self.__static_dispatch(self.__id, action, *args, result=result)
-
-    @classmethod
-    def _property(cls, name: str):
-        get_name = f"get_{name}"
-        set_name = f"set_{name}"
-
-        def getter(self):
-            return self.__dispatch(f"get_{name}")
-        setattr(cls, get_name, getter)
-
-        def setter(self, value):
-            return self.__dispatch(f"set_{name}", value, result=False)
-        setattr(cls, set_name, setter)
-
-        # Install the property using those methods
-        prop = property(getattr(cls, get_name), getattr(cls, set_name))
-        setattr(cls, name, prop)
-
-
-HTMLCanvas._property("width")
-HTMLCanvas._property("height")
-HTMLCanvas._property("lineHeight")
-HTMLCanvas._property("fillStyle")
-HTMLCanvas._property("strokeStyle")
-del HTMLCanvas._property

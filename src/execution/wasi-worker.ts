@@ -1,7 +1,7 @@
 import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
 import { SerializedStream } from "./connection";
-import { BaseCanvasEvent } from "./canvas";
-import { CanvasDrive as CanvasAwareDrive } from "./drive";
+import { BaseCanvasEvent, voidActions } from "./canvas";
+import { CanvasAwareDrive } from "./drive";
 
 type StartWorkerMessage = {
   target: "client";
@@ -111,6 +111,10 @@ function createDrive(message: StartWorkerMessage) {
 
         /* Post event to main thread where it can be rendered, and get the result */
         sendMessage({ target: "host", type: "canvasEvent", event });
+
+        // actions marked as returning void don't need extra communication
+        // this is mirrored on the host side
+        if (voidActions.includes(event.action)) return;
 
         // Here we assume that the host will return the correct result!
         return canvasStream.receive() as any;
