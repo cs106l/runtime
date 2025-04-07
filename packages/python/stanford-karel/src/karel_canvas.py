@@ -114,7 +114,7 @@ class KarelCanvas(HTMLCanvas):
         self.moveTo(points[0], points[1])
         for i in range(2, len(points), 2):
             self.lineTo(points[i], points[i + 1])
-        self.lineTo(points[0], points[1])
+        self.closePath()
 
         if fill:
             self.fillStyle = fill

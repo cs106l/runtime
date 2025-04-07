@@ -86,6 +86,7 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   Args("moveTo", z.number(), z.number()),
   Args("lineTo", z.number(), z.number()),
   Nullary("stroke"),
+  Nullary("closePath"),
 
   Nullary("save"),
   Nullary("restore"),
@@ -115,6 +116,7 @@ export const voidActions: CanvasAction[] = [
   "moveTo",
   "lineTo",
   "stroke",
+  "closePath",
   "save",
   "restore",
   "commit"
@@ -200,6 +202,8 @@ export class CanvasContainer implements CanvasEventHandler {
         return this.context.moveTo(...event.args);
       case "stroke":
         return this.context.stroke();
+      case "closePath":
+        return this.context.closePath();
       case "save":
         return this.context.save();
       case "restore":

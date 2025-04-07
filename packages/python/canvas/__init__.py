@@ -73,6 +73,9 @@ class HTMLCanvas:
     def lineTo(self, x: float, y: float):
         self.__dispatch("lineTo", x, y, result=False)
 
+    def closePath(self):
+        self.__dispatch("closePath", result=False)
+
     def stroke(self):
         self.__dispatch("stroke", result=False)
 
