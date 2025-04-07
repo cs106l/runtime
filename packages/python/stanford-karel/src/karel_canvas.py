@@ -105,7 +105,7 @@ class KarelCanvas(HTMLCanvas):
         self,
         points: list[float],
         fill: str = "foreground",
-        outline: bool = False
+        outline: bool = True
     ) -> None:
         if len(points) < 4 or len(points) % 2 != 0:
             raise ValueError("Points must contain an even number of coordinates and at least one segment.")
@@ -412,7 +412,7 @@ class KarelCanvas(HTMLCanvas):
         entire_body_points = outer_points + inner_points
 
         # First draw the filled non-convex polygon
-        self.create_default_polygon(entire_body_points, fill="background")
+        self.create_default_polygon(entire_body_points, fill="background", outline=False)
 
         # Then draw the transparent exterior edges of Karel's body
         self.create_default_polygon(outer_points, fill="")
@@ -462,7 +462,7 @@ class KarelCanvas(HTMLCanvas):
         points += [x, y + vertical_offset]
 
         self.rotate_points(center, points, direction)
-        self.create_default_polygon(points)
+        self.create_default_polygon(points, outline=False)
 
         # Reset point of reference to be bottom left rather than top_left
         y += self.cell_size * KAREL_HEIGHT
@@ -481,7 +481,7 @@ class KarelCanvas(HTMLCanvas):
         points += [x + horizontal_offset, y]
 
         self.rotate_points(center, points, direction)
-        self.create_default_polygon(points)
+        self.create_default_polygon(points, outline=False)
 
     def draw_simple_karel_icon(
         self, center: tuple[float, float], direction: float

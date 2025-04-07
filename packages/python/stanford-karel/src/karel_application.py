@@ -202,7 +202,7 @@ class KarelApplication:
             self.canvas.draw()
             # delay by specified amount
             # TODO: This should be replaced by time.sleep once the environment supports it
-            HTMLCanvas.sleep(500)
+            HTMLCanvas.sleep(300)
 
         return wrapper
 
