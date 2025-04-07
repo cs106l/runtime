@@ -2,7 +2,12 @@ import type { WASIFS } from "@cs106l/wasi";
 import type { PackageMeta } from "./schema";
 import combineAsyncIterators from "combine-async-iterators";
 
-export class PackageNotFoundError extends Error {}
+export class PackageNotFoundError extends Error {
+  constructor(public readonly ref: PackageRef) {
+    super(`Could not find package: ${ref}`);
+    this.name = "PackageNotFoundError";
+  }
+}
 
 /**
  * A reference to a package or packages. It has the format:
@@ -53,7 +58,7 @@ export abstract class Package {
     if (ref.startsWith("@")) return { name: ref };
 
     let colon = ref.indexOf(":");
-    if (colon < 0) colon = 0;
+    if (colon < 0) colon = -1;
     const registry = ref.substring(0, colon).trim() || undefined;
 
     let at = ref.lastIndexOf("@");

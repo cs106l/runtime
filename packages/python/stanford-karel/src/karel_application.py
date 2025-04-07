@@ -12,6 +12,7 @@ Date of Creation: 10/1/2019
 from __future__ import annotations
 
 import importlib.util
+from importlib.machinery import SourceFileLoader
 import inspect
 import traceback as tb
 from pathlib import Path
@@ -50,9 +51,9 @@ class StudentCode:
             raise FileNotFoundError(f"{code_file} could not be found.")
 
         self.module_name = code_file.stem
-        spec = importlib.util.spec_from_file_location(
-            self.module_name, code_file.resolve()
-        )
+        loader = SourceFileLoader(self.module_name, code_file.as_posix())
+        spec = importlib.util.spec_from_loader(self.module_name, loader)
+        
         assert spec is not None
         try:
             module_loader = spec.loader
@@ -201,6 +202,7 @@ class KarelApplication:
             # redraw canvas with updated state of the world
             self.canvas.redraw_all()
             # delay by specified amount
+            # TODO: This should be replaced by time.sleep once the environment supports it
             HTMLCanvas.sleep(500)
 
         return wrapper
