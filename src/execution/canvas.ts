@@ -271,9 +271,8 @@ export class CanvasManager implements CanvasEventHandler {
 
   set options(value: CanvasManagerOptions) {
     this._options = value;
-    this.canvasMap.forEach((container) => {
-      container.theme = value.theme;
-    });
+    this.canvasMap.forEach((container) => (container.theme = value.theme));
+    this.stale.forEach(container => container.theme = value.theme);
   }
 
   onEvent(event: BaseCanvasEvent) {
