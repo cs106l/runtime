@@ -19,7 +19,6 @@ Date of Creation: 10/1/2019
 
 from __future__ import annotations
 
-from .karel_ascii import AsciiKarelWorld, compare_output
 from .karel_world import COLOR_MAP, INFINITY, Direction, KarelWorld
 
 NEXT_DIRECTION_MAP = {
@@ -64,29 +63,10 @@ class KarelProgram:
         self.direction = self.world.karel_start_direction
         self.num_beepers = self.world.karel_start_beeper_count
 
-    def __repr__(self) -> str:
-        """Creates a Karel World in ASCII Art!"""
-        return str(AsciiKarelWorld(self.world, self.street, self.avenue))
-
     def __eq__(self, other: object) -> bool:
         if isinstance(other, KarelProgram):
             return self.__dict__ == other.__dict__
         return NotImplemented
-
-    def compare_with(self, other: KarelProgram, two_columns: bool = True) -> bool:
-        """
-        Options:
-            two_columns: bool (default=True)
-        """
-        if self == other:
-            return True
-        if not two_columns:
-            print(f"\n\nStudent output:\n{self}")
-            print(f"\nExpected output:\n{other}")
-            return False
-
-        print(compare_output(self, other))
-        return False
 
     def reset_state(self) -> None:
         """
