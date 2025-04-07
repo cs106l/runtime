@@ -272,7 +272,7 @@ export class CanvasManager implements CanvasEventHandler {
   set options(value: CanvasManagerOptions) {
     this._options = value;
     this.canvasMap.forEach((container) => (container.theme = value.theme));
-    this.stale.forEach(container => container.theme = value.theme);
+    this.stale.forEach((container) => (container.theme = value.theme));
   }
 
   onEvent(event: BaseCanvasEvent) {
@@ -308,25 +308,34 @@ export class CanvasManager implements CanvasEventHandler {
   }
 
   public remove(id: CanvasID) {
-    const container = this.canvasMap.get(id);
-    if (!container) return;
-    this.canvasMap.delete(id);
+    let container: CanvasContainer;
+    if (this.canvasMap.has(id)) {
+      container = this.canvasMap.get(id)!;
+      this.canvasMap.delete(id);
+    } else {
+      const idx = this.stale.findIndex((c) => c.id === id);
+      if (idx === -1) return;
+      container = this.stale[idx];
+      this.stale.splice(idx, 1);
+    }
+
     container.canvas.remove();
+    this.onEvent?.({ action: "delete", id });
   }
 
   public reset(timeoutMs?: number) {
     clearTimeout(this.resetTimeout);
     if (timeoutMs === undefined || timeoutMs <= 0) {
       const ids = [...this.canvasMap.keys()];
-      ids.forEach((id) => this.remove(id));
+      ids.forEach(this.remove.bind(this));
       this.stale.length = 0;
     } else {
       this.stale.push(...this.canvasMap.values());
       this.canvasMap.clear();
       this.resetTimeout = setTimeout(() => {
         // Remove all stale canvases after timeout
-        this.stale.forEach((container) => container.canvas.remove());
-        this.stale.length = 0;
+        const ids = this.stale.map((c) => c.id);
+        ids.forEach(this.remove.bind(this));
       }, timeoutMs);
     }
   }
