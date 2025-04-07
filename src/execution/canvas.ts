@@ -91,7 +91,7 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   Nullary("save"),
   Nullary("restore"),
 
-  Nullary("commit")
+  Nullary("commit"),
 ]);
 
 /**
@@ -119,7 +119,7 @@ export const voidActions: CanvasAction[] = [
   "closePath",
   "save",
   "restore",
-  "commit"
+  "commit",
 ];
 
 export const allowedCanvasActions = CanvasEventSchema.options.map((o) => o.shape.action.value);
@@ -145,14 +145,11 @@ export class CanvasContainer implements CanvasEventHandler {
     this.context = context;
   }
 
-  onEvent(event: BaseCanvasEvent): unknown {
-    this.log.push(event);
+  onEvent(event: BaseCanvasEvent, replay?: boolean): unknown {
+    if (!replay) this.log.push(event);
     switch (event.action) {
       case "sleep":
       case "new":
-        return;
-      case "delete":
-        this.canvas.remove();
         return;
       case "get_width":
         return this.canvas.width;
@@ -213,7 +210,7 @@ export class CanvasContainer implements CanvasEventHandler {
 
   public refresh() {
     this.context.reset();
-    this.log.forEach(this.onEvent.bind(this));
+    this.log.forEach((event) => this.onEvent(event, true));
   }
 
   private color(color: string) {
@@ -255,12 +252,16 @@ export class CanvasManager implements CanvasEventHandler {
 
     if (event.action === "new") {
       const id = crypto.randomUUID();
-      this.getContainer(id);
+      const canvas = this.getCanvas();
+      const container = new CanvasContainer(this, id, canvas);
+      this.canvasMap.set(id, container);
       return id;
     }
 
-    const container = this.getContainer(event.id);
-    if (event.action === "delete") this.canvasMap.delete(event.id);
+    if (event.action === "delete") return this.remove(event.id);
+
+    const container = this.canvasMap.get(event.id);
+    if (!container) return null;
     return container.onEvent(event);
   }
 
@@ -268,19 +269,21 @@ export class CanvasManager implements CanvasEventHandler {
     this.canvasMap.forEach((container) => container.refresh());
   }
 
+  public remove(id: CanvasID) {
+    const container = this.canvasMap.get(id);
+    if (!container) return;
+    this.canvasMap.delete(id);
+    container.canvas.remove();
+  }
+
+  public reset() {
+    const ids = [...this.canvasMap.keys()];
+    ids.forEach((id) => this.remove(id));
+  }
+
   protected getCanvas() {
     const canvas = document.createElement("canvas");
     this.source.appendChild(canvas);
     return canvas;
-  }
-
-  protected getContainer(id: CanvasID) {
-    let container = this.canvasMap.get(id);
-    if (!container) {
-      const canvas = this.getCanvas();
-      container = new CanvasContainer(this, id, canvas);
-      this.canvasMap.set(id, container);
-    }
-    return container;
   }
 }

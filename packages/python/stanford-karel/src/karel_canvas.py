@@ -85,6 +85,7 @@ class KarelCanvas(HTMLCanvas):
         self.karel = karel
         self.icon = DEFAULT_ICON
         self.init_geometry_values()
+        self.strokeStyle = "foreground"
         self.draw()
 
     @staticmethod
@@ -265,7 +266,7 @@ class KarelCanvas(HTMLCanvas):
 
         if count > 1:
             self.create_text(
-                corner_x, corner_y, text=str(count), font="12px Arial"
+                corner_x, corner_y, text=str(count), font="12px Arial", fill="black"
             )
 
     def draw_all_walls(self) -> None:
