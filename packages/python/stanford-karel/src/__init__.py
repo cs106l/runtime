@@ -36,6 +36,5 @@ from stanfordkarel.stanfordkarel import (  # noqa: F401
     put_beeper,
     right_is_blocked,
     right_is_clear,
-    run_karel_program,
     turn_left,
 )
