@@ -1,6 +1,6 @@
 import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
 import { SerializedStream } from "./connection";
-import { BaseCanvasEvent, voidActions } from "./canvas";
+import { BaseCanvasEvent, CanvasEvent, voidActions } from "./canvas";
 import { CanvasAwareDrive } from "./drive";
 
 type StartWorkerMessage = {
@@ -44,7 +44,7 @@ type CrashHostMessage = {
 type CanvasEventMessage = {
   target: "host";
   type: "canvasEvent";
-  event: BaseCanvasEvent;
+  events: BaseCanvasEvent[];
 };
 
 export type HostMessage =
@@ -98,6 +98,7 @@ let drive: CanvasAwareDrive | null = null;
 function createDrive(message: StartWorkerMessage) {
   const sleep = new Int32Array(new SharedArrayBuffer(4));
   const canvasStream = new SerializedStream(message.canvasBuffer);
+  const events: BaseCanvasEvent[] = [];
 
   drive = new CanvasAwareDrive(
     {
@@ -109,15 +110,19 @@ function createDrive(message: StartWorkerMessage) {
           return;
         }
 
-        /* Post event to main thread where it can be rendered, and get the result */
-        sendMessage({ target: "host", type: "canvasEvent", event });
-
-        // actions marked as returning void don't need extra communication
-        // this is mirrored on the host side
-        if (voidActions.includes(event.action)) return;
-
-        // Here we assume that the host will return the correct result!
-        return canvasStream.receive() as any;
+        if (!voidActions.includes(event.action)) {
+          events.push(event);
+          sendMessage({ target: "host", type: "canvasEvent", events });
+          const result = canvasStream.receive();
+          events.length = 0;
+          return result;
+        }
+        
+        events.push(event);
+        if (event.action === "commit") {
+          sendMessage({ target: "host", type: "canvasEvent", events });
+          events.length = 0;
+        }
       },
     },
     message.fs,

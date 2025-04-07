@@ -76,6 +76,9 @@ class HTMLCanvas:
     def stroke(self):
         self.__dispatch("stroke", result=False)
 
+    def commit(self):
+        self.__dispatch("commit", result=False)
+
     @staticmethod
     def __static_dispatch(id, action, *args, result: bool = True):
         file = f"/.canvas/{action}"

@@ -58,9 +58,12 @@ export class WASIWorkerHost {
             break;
 
           case "canvasEvent":
-            const result = this.context.canvas?.onEvent(message.event);
-            if (!voidActions.includes(message.event.action))
-              this.canvasStream.send(result as any);
+            for (let i = 0; i < message.events.length; i++) {
+              const event = message.events[i];
+              const result = this.context.canvas?.onEvent(event);
+              if (i === message.events.length - 1 && !voidActions.includes(event.action))
+                this.canvasStream.send(result as any);
+            }
             break;
           case "crash":
             reject(message.error);

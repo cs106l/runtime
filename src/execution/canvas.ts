@@ -86,6 +86,8 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   Args("moveTo", z.number(), z.number()),
   Args("lineTo", z.number(), z.number()),
   Nullary("stroke"),
+
+  Nullary("commit")
 ]);
 
 /**
@@ -110,6 +112,7 @@ export const voidActions: CanvasAction[] = [
   "moveTo",
   "lineTo",
   "stroke",
+  "commit"
 ];
 
 export const allowedCanvasActions = CanvasEventSchema.options.map((o) => o.shape.action.value);

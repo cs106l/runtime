@@ -148,6 +148,7 @@ class KarelCanvas(HTMLCanvas):
         self.reset()
         self.draw_world()
         self.draw_karel()
+        self.commit()
 
     def draw_world(self) -> None:
         self.init_geometry_values()
