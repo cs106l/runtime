@@ -90,7 +90,7 @@ class KarelWorld:
         self.world_file = self.process_world(world_file)
 
         # Map of beeper locations to the count of beepers at that location
-        self.beepers: dict[tuple[int, int], int] = defaultdict()
+        self.beepers: dict[tuple[int, int], int] = defaultdict(int)
 
         # Map of corner colors, defaults to ""
         self.corner_colors: dict[tuple[int, int], str] = {}
