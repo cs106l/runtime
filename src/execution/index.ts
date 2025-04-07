@@ -5,7 +5,7 @@ import type { PackageRef, PackageWorkspace } from "../packages";
 import { LanguagesConfig } from "./languages";
 import { fetchWASIFS } from "../utils";
 import { WASIWorkerHost, WASIWorkerHostKilledError } from "./wasi-host";
-import { BaseCanvasEvent, CanvasID } from "./drive";
+import { CanvasEventHandler } from "./canvas";
 
 /*
  * ============================================================================
@@ -27,6 +27,9 @@ export type WorkerHostConfig = {
 
   /** The command that the host will run */
   args: [string, ...string[]];
+
+  /** The environment to launch the binary with */
+  env?: Record<string, string>;
 
   /**
    * The file system to execute the command with.
@@ -61,80 +64,6 @@ export type LanguageConfiguration = {
   steps: [LanguageStep, ...LanguageStep[]];
   packages: PackageManager;
 };
-
-/*
- * ============================================================================
- * Canvas support
- * ============================================================================
- */
-
-export interface CanvasEventHandler {
-  onEvent(event: BaseCanvasEvent): unknown;
-}
-
-export class CanvasContainer implements CanvasEventHandler {
-  public context: CanvasRenderingContext2D;
-
-  constructor(public canvas: HTMLCanvasElement) {
-    const context = canvas.getContext("2d");
-    if (context === null) throw new Error(`Unable to get rendering context for created canvas`);
-    this.context = context;
-  }
-
-  onEvent(event: BaseCanvasEvent): unknown {
-    switch (event.action) {
-      case "sleep":
-      case "new":
-        return;
-      case "width":
-        return this.canvas.width;
-      case "setWidth":
-        return (this.canvas.width = event.args[0]);
-      case "height":
-        return this.canvas.height;
-      case "setHeight":
-        return (this.canvas.height = event.args[0]);
-      case "fillRect":
-        return this.context.fillRect(...event.args);
-    }
-  }
-}
-
-export type CanvasManagerOptions = {
-  getCanvas: () => HTMLCanvasElement;
-  onEvent?: (event: BaseCanvasEvent) => void;
-}
-
-export class CanvasManager implements CanvasEventHandler {
-  public canvases = new Map<CanvasID, CanvasContainer>();
-
-  constructor(protected options: CanvasManagerOptions) {}
-
-  onEvent(event: BaseCanvasEvent) {
-    this.options.onEvent?.(event);
-    
-    if (event.action === "sleep") return;
-
-    if (event.action === "new") {
-      const id = crypto.randomUUID();
-      this.getContainer(id);
-      return id;
-    }
-
-    const container = this.getContainer(event.id);
-    container.onEvent(event);
-  }
-
-  protected getContainer(id: CanvasID) {
-    let container = this.canvases.get(id);
-    if (!container) {
-      const canvas = this.options.getCanvas();
-      container = new CanvasContainer(canvas);
-      this.canvases.set(id, container);
-    }
-    return container;
-  }
-}
 
 /*
  * ============================================================================
@@ -229,7 +158,7 @@ export async function run(
 
     const host = new WASIWorkerHost(toBinaryURL(hostConfig.fs, hostConfig.binary), {
       args: hostConfig.args,
-      env: {},
+      env: hostConfig.env,
       fs: hostConfig.fs,
       stdout: context.write,
       stderr: context.write,
@@ -295,3 +224,5 @@ function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
 export function configure(language: Language): LanguageConfiguration {
   return LanguagesConfig[language];
 }
+
+export * from "./canvas";

@@ -3,7 +3,7 @@ import type { HostMessage, WorkerMessage } from "./wasi-worker";
 
 import WASIWorker from "./wasi-worker?worker&inline";
 import { SerializedStream } from "./connection";
-import { CanvasEventHandler } from ".";
+import { CanvasEventHandler } from "./canvas";
 
 function sendMessage(worker: Worker, message: WorkerMessage, transfer?: Transferable[]) {
   worker.postMessage(message, transfer ?? []);

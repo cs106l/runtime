@@ -22,7 +22,7 @@ class HTMLCanvas:
 
     @width.setter
     def width(self, value: float):
-        self.__dispatch("width", value, result=False)
+        self.__dispatch("setWidth", value, result=False)
 
 
     @property
@@ -32,19 +32,25 @@ class HTMLCanvas:
 
     @height.setter
     def height(self, value: float):
-        self.__dispatch("height", value, result=False)
+        self.__dispatch("setHeight", value, result=False)
 
     
     def fill_rect(self, x: float, y: float, width: float, height: float):
         self.__dispatch("fillRect", x, y, width, height, result=False)
 
 
-    def __dispatch(self, action, *args, result: bool = True):
+    @staticmethod
+    def sleep(ms: float):
+        HTMLCanvas.__static_dispatch(None, "sleep", ms, result=False)
+
+
+    @staticmethod
+    def __static_dispatch(id, action, *args, result: bool = True):
         file = f"/.canvas/{action}"
 
         req = {}
         if len(args) > 0: req["args"] = args
-        req["id"] = self.__id
+        req["id"] = id
         req_encoded = json.dumps(req).encode()
         req_encoded = struct.pack(">I", len(req_encoded)) + req_encoded
 
@@ -68,3 +74,6 @@ class HTMLCanvas:
           
             res = json.loads(res_encoded.decode())
             return res
+        
+    def __dispatch(self, action, *args, result: bool = True):
+        return self.__static_dispatch(self.__id, action, *args, result=result)

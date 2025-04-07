@@ -1,23 +1,18 @@
 import { DriveResult, FileDescriptor, WASIDrive, WASIFS } from "@cs106l/wasi";
 import { WASISnapshotPreview1 } from "@cs106l/wasi";
-import { z } from "zod";
-
-export type CanvasID = string;
-
-export type CanvasDriveOptions = {
-  /**
-   * A callback that dispatches canvas updates to the main thread and synchronously gets their result.
-   * @param event The action that the WASM binary requested.
-   * @returns The result of calling the relevant method, whatever its format might be.
-   */
-  dispatcher(event: BaseCanvasEvent): CanvasEventResult<typeof event.action>;
-};
+import {
+  allowedCanvasActions,
+  BaseCanvasEvent,
+  CanvasAction,
+  CanvasEventHandler,
+  CanvasEventSchema,
+} from "./canvas";
 
 export class CanvasDrive extends WASIDrive {
   private readers = new Map<CanvasAction, ByteReader>();
   private writers = new Map<CanvasAction, ByteWriter>();
 
-  constructor(private config: CanvasDriveOptions, fs?: WASIFS) {
+  constructor(private handler: CanvasEventHandler, fs?: WASIFS) {
     super(fs ?? {});
   }
 
@@ -45,7 +40,7 @@ export class CanvasDrive extends WASIDrive {
 
   private onCanvasMessage(message: BaseCanvasEvent) {
     const writer = this.getWriter(message.action);
-    const result = this.config.dispatcher(message);
+    const result = this.handler.onEvent(message);
     writer.set(result);
   }
 
@@ -57,7 +52,7 @@ export class CanvasDrive extends WASIDrive {
     const match = path.match(/^\/\.canvas\/([^\/]+)/);
     if (!match) return;
     const action = match[1] as CanvasAction;
-    if (!allowedActions.includes(action)) return undefined;
+    if (!allowedCanvasActions.includes(action)) return undefined;
     return action;
   }
 
@@ -93,81 +88,6 @@ export class CanvasDrive extends WASIDrive {
     return writer;
   }
 }
-
-/**
- * The raw mesage payload that gets sent over the wire to trigger
- * a canvas action must follow a specific binary format.
- *
- * Data is written to `.canvas/<action>` as UTF8 encoded JSON encoded like so:
- *
- * ```
- * [length: 4 bytes] [payload: length bytes]
- * ```
- *
- * The header length should be an unsigned, 32-bit integer written in big-endian format.
- * The payload should be the JSON encoded arguments array for the requested action.
- *
- * If the action is a method that returns a value (and that value can be serialized
- * in a meaningful way), then the next read from `.canvas/<action>` will yield UTF8
- * encoded JSON with the result in the same format.
- */
-
-// Create canvas:   write   .canvas/new
-// Fill rect:       write   .canvas/rect
-// Get font:        read    .canvas/font
-// Sleep:           write   .canvas/sleep
-
-const unsigned = z.number().nonnegative();
-
-function CanvasAction<Action extends z.Primitive>(action: Action) {
-  return z.object({
-    action: z.literal(action),
-    id: z.string(),
-  });
-}
-
-function CanvasActionArgs<
-  Action extends z.Primitive,
-  Args extends [z.ZodTypeAny, ...z.ZodTypeAny[]],
->(action: Action, ...args: Args) {
-  return z.object({
-    action: z.literal(action),
-    id: z.string(),
-    args: z.tuple(args),
-  });
-}
-
-const CanvasEventSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("sleep"),
-    args: z.tuple([unsigned]),
-  }),
-  z.object({
-    action: z.literal("new"),
-  }),
-  CanvasAction("width"),
-  CanvasActionArgs("setWidth", unsigned),
-  CanvasAction("height"),
-  CanvasActionArgs("setHeight", unsigned),
-  CanvasActionArgs("fillRect", z.number(), z.number(), z.number(), z.number()),
-]);
-
-const allowedActions = CanvasEventSchema.options.map((o) => o.shape.action.value);
-
-export type BaseCanvasEvent = z.infer<typeof CanvasEventSchema>;
-export type CanvasEvent<Action extends CanvasAction> = BaseCanvasEvent & { action: Action };
-export type CanvasAction = BaseCanvasEvent["action"];
-export type CanvasEventResult<Action extends CanvasAction> = CanvasEventResultMap[Action];
-
-type CanvasEventResultMap = {
-  sleep: void;
-  new: CanvasID;
-  width: number;
-  setWidth: void;
-  height: number;
-  setHeight: void;
-  fillRect: void;
-};
 
 class ByteReader {
   public onMessage?: (message: unknown) => void;

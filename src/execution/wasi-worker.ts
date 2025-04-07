@@ -1,6 +1,7 @@
 import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
-import { CanvasDrive, BaseCanvasEvent, CanvasDriveOptions, CanvasEventResult } from "./drive";
 import { SerializedStream } from "./connection";
+import { BaseCanvasEvent } from "./canvas";
+import { CanvasDrive as CanvasAwareDrive } from "./drive";
 
 type StartWorkerMessage = {
   target: "client";
@@ -92,30 +93,31 @@ function sendMessage(message: HostMessage) {
   postMessage(message);
 }
 
-let drive: CanvasDrive | null = null;
+let drive: CanvasAwareDrive | null = null;
 
 function createDrive(message: StartWorkerMessage) {
   const sleep = new Int32Array(new SharedArrayBuffer(4));
   const canvasStream = new SerializedStream(message.canvasBuffer);
-  
-  const config: CanvasDriveOptions = {
-    dispatcher(message) {
-      if (message.action === "sleep") {
-        /* Sleep is handled specially, we just wait for some number of milliseconds.
-         * No communication with the main thread is needed */
-        Atomics.wait(sleep, 0, 0, message.args[0] as number);
-        return;
-      }
 
-      /* Post event to main thread where it can be rendered, and get the result */
-      sendMessage({ target: "host", type: "canvasEvent", event: message });
+  drive = new CanvasAwareDrive(
+    {
+      onEvent(event) {
+        if (event.action === "sleep") {
+          /* Sleep is handled specially, we just wait for some number of milliseconds.
+           * No communication with the main thread is needed */
+          Atomics.wait(sleep, 0, 0, event.args[0] as number);
+          return;
+        }
 
-      // Here we assume that the host CanvasManager will return the correct result
-      return canvasStream.receive() as any;
+        /* Post event to main thread where it can be rendered, and get the result */
+        sendMessage({ target: "host", type: "canvasEvent", event });
+
+        // Here we assume that the host will return the correct result!
+        return canvasStream.receive() as any;
+      },
     },
-  };
-
-  drive = new CanvasDrive(config, message.fs);
+    message.fs,
+  );
   return drive;
 }
 
@@ -130,6 +132,7 @@ async function start(message: StartWorkerMessage) {
 }
 
 function sendStdout(out: string) {
+  console.log("Sending stdout");
   sendMessage({
     target: "host",
     type: "stdout",
