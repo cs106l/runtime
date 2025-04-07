@@ -141,7 +141,6 @@ async function start(message: StartWorkerMessage) {
 }
 
 function sendStdout(out: string) {
-  console.log("Sending stdout");
   sendMessage({
     target: "host",
     type: "stdout",
