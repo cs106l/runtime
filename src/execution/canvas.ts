@@ -143,7 +143,7 @@ export class CanvasContainer implements CanvasEventHandler {
   constructor(
     public readonly id: CanvasID,
     public canvas: HTMLCanvasElement,
-    protected theme: CanvasTheme,
+    public theme: CanvasTheme,
   ) {
     const context = canvas.getContext("2d");
     if (context === null) throw new Error(`Unable to get rendering context for created canvas`);
@@ -248,14 +248,14 @@ export type CanvasManagerOptions = {
 };
 
 export class CanvasManager implements CanvasEventHandler {
-  public options: CanvasManagerOptions;
+  private _options: CanvasManagerOptions;
   protected canvasMap = new Map<CanvasID, CanvasContainer>();
 
   protected readonly stale: CanvasContainer[] = [];
   protected resetTimeout?: ReturnType<typeof setTimeout>;
 
   constructor(protected readonly source: Node, options?: PartialDeep<CanvasManagerOptions>) {
-    this.options = {
+    this._options = {
       onEvent: options?.onEvent,
       theme: {
         foreground: options?.theme?.foreground ?? "#000",
@@ -265,8 +265,19 @@ export class CanvasManager implements CanvasEventHandler {
     };
   }
 
+  get options() {
+    return this._options;
+  }
+
+  set options(value: CanvasManagerOptions) {
+    this._options = value;
+    this.canvasMap.forEach((container) => {
+      container.theme = value.theme;
+    });
+  }
+
   onEvent(event: BaseCanvasEvent) {
-    this.options.onEvent?.(event);
+    this._options.onEvent?.(event);
 
     if (event.action === "sleep") return;
 
@@ -281,7 +292,7 @@ export class CanvasManager implements CanvasEventHandler {
 
       const id = crypto.randomUUID();
       const canvas = this.getCanvas();
-      const container = new CanvasContainer(id, canvas, this.options.theme);
+      const container = new CanvasContainer(id, canvas, this._options.theme);
       this.canvasMap.set(id, container);
       return id;
     }
