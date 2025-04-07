@@ -47,6 +47,19 @@ class HTMLCanvas:
     @strokeStyle.setter
     def strokeStyle(self, value): self.__dispatch("set_strokeStyle", value, result=False)
 
+    @property
+    def textAlign(self): return self.__dispatch("get_textAlign")
+
+    @textAlign.setter
+    def textAlign(self, value): self.__dispatch("set_textAlign", value, result=False)
+
+    @property
+    def textBaseline(self): return self.__dispatch("get_textBaseline")
+
+    @textBaseline.setter
+    def textBaseline(self, value): self.__dispatch("set_textBaseline", value, result=False)
+
+
     def fill(self, fillRule: str = None):
         if fillRule is None: self.__dispatch("fill", result=False)
         else: self.__dispatch("fill", fillRule, result=False)

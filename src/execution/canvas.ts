@@ -68,6 +68,9 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   ...Property("fillStyle", z.string()),
   ...Property("strokeStyle", z.string()),
   ...Property("font", z.string()),
+  ...Property("textAlign", z.string()),
+  ...Property("textBaseline", z.string()),
+
   ComplexArgs(
     "fillText",
     z.union([
@@ -78,7 +81,7 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
 
   Nullary("reset"),
 
-  ComplexArgs("fill", z.tuple([z.enum(["nonzero", "evenodd"])]).optional()),
+  ComplexArgs("fill", z.tuple([z.string()]).optional()),
   Args("fillRect", z.number(), z.number(), z.number(), z.number()),
   Args("rect", z.number(), z.number(), z.number(), z.number()),
 
@@ -107,6 +110,8 @@ export const voidActions: CanvasAction[] = [
   "set_fillStyle",
   "set_strokeStyle",
   "set_font",
+  "set_textAlign",
+  "set_textBaseline",
   "fillText",
   "reset",
   "fill",
@@ -179,7 +184,7 @@ export class CanvasContainer implements CanvasEventHandler {
         return;
       case "fill":
         const args = event.args ?? [];
-        return this.context.fill(...args);
+        return this.context.fill(...(args as any[]));
       case "fillRect":
         return this.context.fillRect(...event.args);
       case "rect":
@@ -191,6 +196,14 @@ export class CanvasContainer implements CanvasEventHandler {
         return this.context.font;
       case "set_font":
         return void (this.context.font = event.args[0]);
+      case "set_textAlign":
+        return void (this.context.textAlign = event.args[0] as any);
+      case "get_textAlign":
+        return this.context.textAlign;
+      case "set_textBaseline":
+        return void (this.context.textBaseline = event.args[0] as any);
+      case "get_textBaseline":
+        return this.context.textBaseline;
       case "beginPath":
         return this.context.beginPath();
       case "lineTo":
