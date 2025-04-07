@@ -13,113 +13,162 @@ Email: nbowman@stanford.edu
 Date of Creation: 10/1/2019
 """
 
+from typing import Callable
+
 import sys
 from pathlib import Path
 
-from .karel_application import KarelApplication
-from .karel_program import KarelProgram
-
-# The following function definitions are defined as stubs so that IDEs can recognize
-# the function definitions in student code. These names are re-bound upon program
-# execution to asscoiate their behavior to the one particular Karel object located
-# in a given world.
+from canvas import HTMLCanvas
+from .karel_program import KarelException, KarelProgram
+from .karel_canvas import KarelCanvas
+from .didyoumean import add_did_you_mean
 
 
+def __get_world_file() -> str:
+    world_file = ""
+    student_code_file = Path(sys.argv[0])
+
+    # Special case - if filename matches a specified world name,
+    # Set the default world to the world with that name.
+    # I personally recommend removing this functionality completely.
+    if (
+        not world_file
+        and (
+            Path(__file__).absolute().parent
+            / "worlds"
+            / student_code_file.with_suffix(".w").name
+        ).is_file()
+    ):
+        world_file = student_code_file.stem
+
+    return world_file
+
+
+__karel = KarelProgram(__get_world_file())
+__canvas = KarelCanvas(600, 400, world=__karel.world, karel=__karel)
+
+
+def __excepthook(exctype, value, traceback):
+    if exctype in [KarelException | NameError | RuntimeError]:
+        add_did_you_mean(value)
+    sys.__excepthook__(exctype, value, traceback)
+sys.excepthook = __excepthook
+
+
+def karel_action_decorator(
+    karel_fn: Callable[..., None]
+) -> Callable[..., None]:
+    def wrapper(*args, **kwargs) -> None:
+        # execute Karel function
+        karel_fn(*args, **kwargs)
+        # redraw canvas with updated state of the world
+        __canvas.draw()
+        # delay by specified amount
+        # TODO: This should be replaced by time.sleep once the environment supports it
+        HTMLCanvas.sleep(300)
+
+    return wrapper
+
+
+@karel_action_decorator
 def move() -> None:
-    raise NotImplementedError
+    return __karel.move()
 
 
+@karel_action_decorator
 def turn_left() -> None:
-    raise NotImplementedError
+    return __karel.turn_left()
 
 
+@karel_action_decorator
 def put_beeper() -> None:
-    raise NotImplementedError
+    return __karel.put_beeper()
 
 
+@karel_action_decorator
 def pick_beeper() -> None:
-    raise NotImplementedError
+    return __karel.pick_beeper()
 
 
-def front_is_clear() -> bool:
-    raise NotImplementedError
-
-
-def front_is_blocked() -> bool:
-    raise NotImplementedError
-
-
-def left_is_clear() -> bool:
-    raise NotImplementedError
-
-
-def left_is_blocked() -> bool:
-    raise NotImplementedError
-
-
-def right_is_clear() -> bool:
-    raise NotImplementedError
-
-
-def right_is_blocked() -> bool:
-    raise NotImplementedError
-
-
-def beepers_present() -> bool:
-    raise NotImplementedError
-
-
-def no_beepers_present() -> bool:
-    raise NotImplementedError
-
-
-def beepers_in_bag() -> bool:
-    raise NotImplementedError
-
-
-def no_beepers_in_bag() -> bool:
-    raise NotImplementedError
-
-
-def facing_north() -> bool:
-    raise NotImplementedError
-
-
-def not_facing_north() -> bool:
-    raise NotImplementedError
-
-
-def facing_east() -> bool:
-    raise NotImplementedError
-
-
-def not_facing_east() -> bool:
-    raise NotImplementedError
-
-
-def facing_west() -> bool:
-    raise NotImplementedError
-
-
-def not_facing_west() -> bool:
-    raise NotImplementedError
-
-
-def facing_south() -> bool:
-    raise NotImplementedError
-
-
-def not_facing_south() -> bool:
-    raise NotImplementedError
-
-
+@karel_action_decorator
 def paint_corner(color: str) -> None:
     del color
 
 
+def front_is_clear() -> bool:
+    return __karel.front_is_clear()
+
+
+def front_is_blocked() -> bool:
+    return __karel.front_is_blocked()
+
+
+def left_is_clear() -> bool:
+    return __karel.left_is_clear()
+
+
+def left_is_blocked() -> bool:
+    return __karel.left_is_blocked()
+
+
+def right_is_clear() -> bool:
+    return __karel.right_is_clear()
+
+
+def right_is_blocked() -> bool:
+    return __karel.right_is_blocked()
+
+
+def beepers_present() -> bool:
+    return __karel.beepers_present()
+
+
+def no_beepers_present() -> bool:
+    return __karel.no_beepers_present()
+
+
+def beepers_in_bag() -> bool:
+    return __karel.beepers_in_bag()
+
+
+def no_beepers_in_bag() -> bool:
+    return __karel.no_beepers_in_bag()
+
+
+def facing_north() -> bool:
+    return __karel.facing_north()
+
+
+def not_facing_north() -> bool:
+    return __karel.not_facing_north()
+
+
+def facing_east() -> bool:
+    return __karel.facing_east()
+
+
+def not_facing_east() -> bool:
+    return __karel.not_facing_east()
+
+
+def facing_west() -> bool:
+    return __karel.facing_west()
+
+
+def not_facing_west() -> bool:
+    return __karel.not_facing_west()
+
+
+def facing_south() -> bool:
+    return __karel.facing_south()
+
+
+def not_facing_south() -> bool:
+    return __karel.not_facing_south()
+
+
 def corner_color_is(color: str) -> bool:
-    del color
-    return True
+    return __karel.corner_color_is(color)
 
 
 # Defined constants for ease of use by students when coloring corners
@@ -137,26 +186,3 @@ WHITE = "White"
 BLUE = "Blue"
 YELLOW = "Yellow"
 BLANK = ""
-
-
-def run_karel_program(world_file: str = "") -> None:
-    # Extract the name of the file the student is executing
-    student_code_file = Path(sys.argv[0])
-
-    # Special case - if filename matches a specified world name,
-    # Set the default world to the world with that name.
-    # I personally recommend removing this functionality completely.
-    if (
-        not world_file
-        and (
-            Path(__file__).absolute().parent
-            / "worlds"
-            / student_code_file.with_suffix(".w").name
-        ).is_file()
-    ):
-        world_file = student_code_file.stem
-
-    # Create Karel and assign it to live in the newly created world
-    karel = KarelProgram(world_file)
-    app = KarelApplication(karel, student_code_file)
-    app.run_program()
