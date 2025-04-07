@@ -141,9 +141,9 @@ export class CanvasContainer implements CanvasEventHandler {
   protected log: BaseCanvasEvent[] = [];
 
   constructor(
-    protected manager: CanvasManager,
     public readonly id: CanvasID,
     public canvas: HTMLCanvasElement,
+    protected theme: CanvasTheme,
   ) {
     const context = canvas.getContext("2d");
     if (context === null) throw new Error(`Unable to get rendering context for created canvas`);
@@ -226,9 +226,13 @@ export class CanvasContainer implements CanvasEventHandler {
     this.log.forEach((event) => this.onEvent(event, true));
   }
 
-  private color(color: string) {
-    const theme = this.manager.options.theme;
-    if (color in theme) return theme[color];
+  public reset() {
+    this.log.length = 0;
+    this.context.reset();
+  }
+
+  protected color(color: string) {
+    if (color in this.theme) return this.theme[color];
     return color;
   }
 }
@@ -247,6 +251,9 @@ export class CanvasManager implements CanvasEventHandler {
   public options: CanvasManagerOptions;
   protected canvasMap = new Map<CanvasID, CanvasContainer>();
 
+  protected readonly stale: CanvasContainer[] = [];
+  protected resetTimeout?: ReturnType<typeof setTimeout>;
+
   constructor(protected readonly source: Node, options?: PartialDeep<CanvasManagerOptions>) {
     this.options = {
       onEvent: options?.onEvent,
@@ -264,9 +271,17 @@ export class CanvasManager implements CanvasEventHandler {
     if (event.action === "sleep") return;
 
     if (event.action === "new") {
+      // Use stale canvases first
+      if (this.stale.length > 0) {
+        const stale = this.stale.pop()!;
+        this.canvasMap.set(stale.id, stale);
+        stale.reset();
+        return stale.id;
+      }
+
       const id = crypto.randomUUID();
       const canvas = this.getCanvas();
-      const container = new CanvasContainer(this, id, canvas);
+      const container = new CanvasContainer(id, canvas, this.options.theme);
       this.canvasMap.set(id, container);
       return id;
     }
@@ -289,9 +304,21 @@ export class CanvasManager implements CanvasEventHandler {
     container.canvas.remove();
   }
 
-  public reset() {
-    const ids = [...this.canvasMap.keys()];
-    ids.forEach((id) => this.remove(id));
+  public reset(timeoutMs?: number) {
+    clearTimeout(this.resetTimeout);
+    if (timeoutMs === undefined || timeoutMs <= 0) {
+      const ids = [...this.canvasMap.keys()];
+      ids.forEach((id) => this.remove(id));
+      this.stale.length = 0;
+    } else {
+      this.stale.push(...this.canvasMap.values());
+      this.canvasMap.clear();
+      this.resetTimeout = setTimeout(() => {
+        // Remove all stale canvases after timeout
+        this.stale.forEach((container) => container.canvas.remove());
+        this.stale.length = 0;
+      }, timeoutMs);
+    }
   }
 
   protected getCanvas() {
