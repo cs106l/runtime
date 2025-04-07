@@ -61,6 +61,7 @@ onmessage = async (ev: MessageEvent) => {
     case "start":
       try {
         const result = await start(data);
+        flushEventBuffer();
         sendMessage({
           target: "host",
           type: "result",
@@ -79,6 +80,7 @@ onmessage = async (ev: MessageEvent) => {
             type: "Unknown",
           };
         }
+        flushEventBuffer();
         sendMessage({
           target: "host",
           type: "crash",
@@ -94,11 +96,16 @@ function sendMessage(message: HostMessage) {
 }
 
 let drive: CanvasAwareDrive | null = null;
+let eventBuffer: BaseCanvasEvent[] = [];
+
+function flushEventBuffer() {
+  sendMessage({ target: "host", type: "canvasEvent", events: eventBuffer });
+  eventBuffer.length = 0;
+}
 
 function createDrive(message: StartWorkerMessage) {
   const sleep = new Int32Array(new SharedArrayBuffer(4));
   const canvasStream = new SerializedStream(message.canvasBuffer);
-  const events: BaseCanvasEvent[] = [];
 
   drive = new CanvasAwareDrive(
     {
@@ -111,18 +118,17 @@ function createDrive(message: StartWorkerMessage) {
         }
 
         if (!voidActions.includes(event.action)) {
-          events.push(event);
-          sendMessage({ target: "host", type: "canvasEvent", events });
-          const result = canvasStream.receive();
-          events.length = 0;
-          return result;
+          eventBuffer.push(event);
+          flushEventBuffer();
+          return canvasStream.receive();
         }
         
-        events.push(event);
         if (event.action === "commit") {
-          sendMessage({ target: "host", type: "canvasEvent", events });
-          events.length = 0;
+          flushEventBuffer();
+          return;
         }
+
+        eventBuffer.push(event);
       },
     },
     message.fs,
