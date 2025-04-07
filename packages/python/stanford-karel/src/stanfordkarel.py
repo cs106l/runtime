@@ -14,7 +14,6 @@ Date of Creation: 10/1/2019
 """
 
 import sys
-import tkinter as tk
 from pathlib import Path
 
 from .karel_application import KarelApplication
@@ -159,8 +158,5 @@ def run_karel_program(world_file: str = "") -> None:
 
     # Create Karel and assign it to live in the newly created world
     karel = KarelProgram(world_file)
-
-    # Initialize root Tk Window and spawn Karel application
-    root = tk.Tk()
-    app = KarelApplication(karel, student_code_file, master=root)
-    app.mainloop()
+    app = KarelApplication(karel, student_code_file)
+    app.run_program()

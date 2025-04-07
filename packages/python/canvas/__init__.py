@@ -6,7 +6,6 @@ import os
 class HTMLCanvas:
     __id: str = ""
 
-
     def __init__(self):
         os.makedirs("/.canvas", exist_ok=True)
         self.__id = self.__dispatch("new")
@@ -14,15 +13,31 @@ class HTMLCanvas:
             print("[Warning] It looks like you're environment doesn't support canvases!")
             print("          Some operations may not work as intended")
 
-    
-    def fillRect(self, x: float, y: float, width: float, height: float):
-        self.__dispatch("fillRect", x, y, width, height, result=False)
-
-
     @staticmethod
     def sleep(ms: float):
         HTMLCanvas.__static_dispatch(None, "sleep", ms, result=False)
 
+    def fill(self, fillRule: str = None):
+        if fillRule is None: self.__dispatch("fill", result=False)
+        else: self.__dispatch("fill", fillRule, result=False)
+
+    def reset(self):
+        self.__dispatch("reset", result=False)
+    
+    def fillRect(self, x: float, y: float, width: float, height: float):
+        self.__dispatch("fillRect", x, y, width, height, result=False)
+
+    def beginPath(self):
+        self.__dispatch("beginPath", result=False)
+
+    def moveTo(self, x: float, y: float):
+        self.__dispatch("moveTo", x, y, result=False)
+
+    def lineTo(self, x: float, y: float):
+        self.__dispatch("lineTo", x, y, result=False)
+
+    def stroke(self):
+        self.__dispatch("stroke", result=False)
 
     @staticmethod
     def __static_dispatch(id, action, *args, result: bool = True):
@@ -57,7 +72,6 @@ class HTMLCanvas:
         
     def __dispatch(self, action, *args, result: bool = True):
         return self.__static_dispatch(self.__id, action, *args, result=result)
-    
 
     @classmethod
     def _property(cls, name: str):

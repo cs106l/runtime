@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import cmath
 import math
-import tkinter as tk
 from typing import TYPE_CHECKING
+
+from canvas import HTMLCanvas
 
 from .karel_world import Direction, KarelWorld, Wall
 
@@ -68,22 +69,22 @@ SIMPLE_KAREL_HEIGHT = 0.7
 SIMPLE_KAREL_WIDTH = 0.8
 
 
-class KarelCanvas(tk.Canvas):
+class KarelCanvas(HTMLCanvas):
     def __init__(
         self,
         width: int,
         height: int,
-        master: tk.Misc,
         world: KarelWorld,
-        karel: KarelProgram,
-        bg: str = "white",
+        karel: KarelProgram
     ) -> None:
-        super().__init__(master, width=width, height=height, bg=bg)
+        super().__init__()
+        self.width = width
+        self.height = height
+
         self.world = world
         self.karel = karel
         self.icon = DEFAULT_ICON
-        self.draw_world()
-        self.draw_karel()
+        self.draw()
 
     @staticmethod
     def rotate_points(
@@ -110,35 +111,10 @@ class KarelCanvas(tk.Canvas):
             *points, fill=fill, outline=outline, width=KAREL_LINE_WIDTH, tags=tags
         )
 
-    def redraw_all(self) -> None:
-        self.delete("all")
+    def draw(self) -> None:
+        self.reset()
         self.draw_world()
         self.draw_karel()
-        self.update()
-
-    def redraw_karel(self, update: bool = True) -> None:
-        self.delete("karel")
-        self.draw_karel()
-        if update:
-            self.update()
-
-    def redraw_beepers(self, update: bool = True) -> None:
-        self.delete("beeper")
-        self.draw_all_beepers()
-        if update:
-            self.update()
-
-    def redraw_corners(self, update: bool = True) -> None:
-        self.delete("corner")
-        self.draw_corners()
-        if update:
-            self.update()
-
-    def redraw_walls(self, update: bool = True) -> None:
-        self.delete("wall")
-        self.draw_all_walls()
-        if update:
-            self.update()
 
     def draw_world(self) -> None:
         self.init_geometry_values()
@@ -149,8 +125,6 @@ class KarelCanvas(tk.Canvas):
         self.draw_all_walls()
 
     def init_geometry_values(self) -> None:
-        self.update()
-
         # Calculate the maximum possible cell size in both directions
         # We will use the smaller of the two as the bounding cell size
         horizontal_cell_size = (
