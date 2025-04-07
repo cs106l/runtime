@@ -14,26 +14,6 @@ class HTMLCanvas:
             print("[Warning] It looks like you're environment doesn't support canvases!")
             print("          Some operations may not work as intended")
 
-
-    @property
-    def width(self):
-        return self.__dispatch("width")
-    
-
-    @width.setter
-    def width(self, value: float):
-        self.__dispatch("setWidth", value, result=False)
-
-
-    @property
-    def height(self):
-        return self.__dispatch("height")
-    
-
-    @height.setter
-    def height(self, value: float):
-        self.__dispatch("setHeight", value, result=False)
-
     
     def fill_rect(self, x: float, y: float, width: float, height: float):
         self.__dispatch("fillRect", x, y, width, height, result=False)
@@ -77,3 +57,27 @@ class HTMLCanvas:
         
     def __dispatch(self, action, *args, result: bool = True):
         return self.__static_dispatch(self.__id, action, *args, result=result)
+    
+    @classmethod
+    def _property(cls, name: str):
+        get_name = f"get_{name}"
+        set_name = f"set_{name}"
+
+        def getter(self):
+            return self.__dispatch(f"get_{name}")
+        setattr(cls, get_name, getter)
+
+        def setter(self, value):
+            return self.__dispatch(f"set_{name}", value, result=False)
+        setattr(cls, set_name, setter)
+
+        # Install the property using those methods
+        prop = property(getattr(cls, get_name), getattr(cls, set_name))
+        setattr(cls, name, prop)
+
+HTMLCanvas._property("width")
+HTMLCanvas._property("height")
+HTMLCanvas._property("lineHeight")
+HTMLCanvas._property("fillStyle")
+HTMLCanvas._property("strokeStyle")
+del HTMLCanvas._property

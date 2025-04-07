@@ -20,19 +20,17 @@ import { z } from "zod";
 
 export type CanvasID = string;
 
-const unsigned = z.number().nonnegative();
-
-function CanvasAction<Action extends z.Primitive>(action: Action) {
+function Nullary<Action extends z.Primitive>(action: Action) {
   return z.object({
     action: z.literal(action),
     id: z.string(),
   });
 }
 
-function CanvasActionArgs<
-  Action extends z.Primitive,
-  Args extends [z.ZodTypeAny, ...z.ZodTypeAny[]],
->(action: Action, ...args: Args) {
+function Args<Action extends z.Primitive, Args extends [z.ZodTypeAny, ...z.ZodTypeAny[]]>(
+  action: Action,
+  ...args: Args
+) {
   return z.object({
     action: z.literal(action),
     id: z.string(),
@@ -40,38 +38,50 @@ function CanvasActionArgs<
   });
 }
 
+function ComplexArgs<Action extends z.Primitive, Args extends z.ZodTypeAny>(
+  action: Action,
+  args: Args,
+) {
+  return z.object({
+    action: z.literal(action),
+    id: z.string(),
+    args,
+  });
+}
+
+function Property<Action extends string, Value extends z.ZodTypeAny>(action: Action, value: Value) {
+  return [Nullary(`get_${action}`), Args(`set_${action}`, value)] as const;
+}
+
 export const CanvasEventSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("sleep"),
-    args: z.tuple([unsigned]),
+    args: z.tuple([z.number()]),
   }),
   z.object({ action: z.literal("new") }),
-  CanvasAction("delete"),
-  CanvasAction("width"),
-  CanvasActionArgs("setWidth", unsigned),
-  CanvasAction("height"),
-  CanvasActionArgs("setHeight", unsigned),
-  CanvasAction("reset"),
-  CanvasActionArgs("fillRect", z.number(), z.number(), z.number(), z.number()),
+  Nullary("delete"),
+
+  ...Property("width", z.number()),
+  ...Property("height", z.number()),
+  ...Property("lineWidth", z.number()),
+  ...Property("fillStyle", z.string()),
+  ...Property("strokeStyle", z.string()),
+
+  Nullary("reset"),
+
+  ComplexArgs("fill", z.tuple([z.enum(["nonzero", "evenodd"])]).optional()),
+  Args("fillRect", z.number(), z.number(), z.number(), z.number()),
+
+  Nullary("beginPath"),
+  Args("moveTo", z.number(), z.number()),
+  Args("lineTo", z.number(), z.number()),
+  Nullary("stroke"),
 ]);
 
 export const allowedCanvasActions = CanvasEventSchema.options.map((o) => o.shape.action.value);
 export type BaseCanvasEvent = z.infer<typeof CanvasEventSchema>;
 export type CanvasEvent<Action extends CanvasAction> = BaseCanvasEvent & { action: Action };
 export type CanvasAction = BaseCanvasEvent["action"];
-export type CanvasEventResult<Action extends CanvasAction> = CanvasEventResultMap[Action];
-
-type CanvasEventResultMap = {
-  sleep: void;
-  new: CanvasID;
-  delete: void;
-  width: number;
-  setWidth: void;
-  height: number;
-  setHeight: void;
-  reset: void;
-  fillRect: void;
-};
 
 export interface CanvasEventHandler {
   onEvent(event: BaseCanvasEvent): unknown;
@@ -96,22 +106,45 @@ export class CanvasContainer implements CanvasEventHandler {
       case "delete":
         this.canvas.remove();
         return;
-      case "width":
+      case "get_width":
         return this.canvas.width;
-      case "setWidth":
+      case "set_width":
         this.canvas.style.width = `${event.args[0]}px`;
-        return (this.canvas.width = event.args[0]);
-      case "height":
+        return void (this.canvas.width = event.args[0]);
+      case "get_height":
         return this.canvas.height;
-      case "setHeight":
+      case "set_height":
         this.canvas.style.height = `${event.args[0]}px`;
-        return (this.canvas.height = event.args[0]);
+        return void (this.canvas.height = event.args[0]);
+      case "get_lineWidth":
+        return this.context.lineWidth;
+      case "set_lineWidth":
+        return void (this.context.lineWidth = event.args[0]);
+      case "get_fillStyle":
+        return this.context.fillStyle;
+      case "set_fillStyle":
+        return void (this.context.fillStyle = event.args[0]);
+      case "get_strokeStyle":
+        return this.context.strokeStyle;
+      case "set_strokeStyle":
+        return void (this.context.strokeStyle = event.args[0]);
       case "reset":
         this.context.reset();
         this.log = [];
         return;
+      case "fill":
+        const args = event.args ?? [];
+        return this.context.fill(...args);
       case "fillRect":
         return this.context.fillRect(...event.args);
+      case "beginPath":
+        return this.context.beginPath();
+      case "lineTo":
+        return this.context.lineTo(...event.args);
+      case "moveTo":
+        return this.context.moveTo(...event.args);
+      case "stroke":
+        return this.context.stroke();
     }
   }
 
