@@ -144,6 +144,8 @@ export async function run(
     },
   };
 
+  console.log(vfs);
+
   /* Run steps to execute code */
   let prevResult: WASIExecutionResult = { exitCode: 0, fs: vfs };
   for (const step of langConfig.steps) {
