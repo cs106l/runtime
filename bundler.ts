@@ -3,7 +3,8 @@
  */
 
 import { z } from "zod";
-import { Language, PackageMetaSchema } from "./src";
+import { Language } from "./src/enums";
+import { PackageMetaSchema } from "./src/packages";
 
 import fs from "fs";
 import path from "path";
@@ -163,7 +164,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
 
   files.push("."); // Ensures empty directories can be tarred
 
-  const packagePrefix = `/packages/${manifest.name}`;
+  const packagePrefix = `/.packages/${manifest.name}`;
   const lang = getManifestLanguage(manifestPath);
   const langDir = path.join(outputDir, lang);
 

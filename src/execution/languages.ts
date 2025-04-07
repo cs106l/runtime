@@ -81,7 +81,7 @@ const Python: LanguageConfiguration = {
       run: {
         binary: "https://runno.dev/langs/python-3.11.3.wasm",
         args: ["python", "/program"],
-        env: { PYTHONUNBUFFERED: "1" },
+        env: { PYTHONUNBUFFERED: "1", PYTHONPATH: "/.packages" },
       },
     },
   ],
