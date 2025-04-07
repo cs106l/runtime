@@ -1,6 +1,6 @@
 import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
 import { SerializedStream } from "./connection";
-import { BaseCanvasEvent, CanvasEvent, voidActions } from "./canvas";
+import { BaseCanvasEvent, voidActions } from "./canvas";
 import { CanvasAwareDrive } from "./drive";
 
 type StartWorkerMessage = {

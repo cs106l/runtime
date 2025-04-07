@@ -104,7 +104,7 @@ class KarelCanvas(HTMLCanvas):
     def create_default_polygon(
         self,
         points: list[float],
-        fill: str = "black",
+        fill: str = "foreground",
         outline: bool = True
     ) -> None:
         if len(points) < 4 or len(points) % 2 != 0:
@@ -412,7 +412,7 @@ class KarelCanvas(HTMLCanvas):
         entire_body_points = outer_points + inner_points
 
         # First draw the filled non-convex polygon
-        self.create_default_polygon(entire_body_points, fill="white")
+        self.create_default_polygon(entire_body_points, fill="background")
 
         # Then draw the transparent exterior edges of Karel's body
         self.create_default_polygon(outer_points, fill="")
@@ -436,7 +436,7 @@ class KarelCanvas(HTMLCanvas):
             mouth_y,
         ]
         self.rotate_points(center, mouth_points, direction)
-        self.create_default_polygon(mouth_points, fill="white")
+        self.create_default_polygon(mouth_points, fill="background")
 
     def draw_karel_legs(
         self, x: float, y: float, center: tuple[float, float], direction: float
@@ -506,7 +506,7 @@ class KarelCanvas(HTMLCanvas):
             center_y - simple_karel_height / 2,
         ]
         self.rotate_points(center, points, direction)
-        self.create_default_polygon(points, fill="white")
+        self.create_default_polygon(points, fill="background")
 
     def calculate_corner_x(self, avenue: float) -> float:
         return self.left_x + self.cell_size / 2 + (avenue - 1) * self.cell_size
