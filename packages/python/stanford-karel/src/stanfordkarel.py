@@ -49,7 +49,7 @@ __canvas = KarelCanvas(600, 400, world=__karel.world, karel=__karel)
 
 
 def __excepthook(exctype, value, traceback):
-    if exctype in [KarelException | NameError | RuntimeError]:
+    if exctype in [KarelException, NameError, RuntimeError]:
         add_did_you_mean(value)
     sys.__excepthook__(exctype, value, traceback)
 sys.excepthook = __excepthook
