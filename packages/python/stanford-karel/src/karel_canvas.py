@@ -84,6 +84,7 @@ class KarelCanvas(HTMLCanvas):
         self.world = world
         self.karel = karel
         self.icon = DEFAULT_ICON
+        self.init_geometry_values()
         self.draw()
 
     @staticmethod
@@ -151,7 +152,6 @@ class KarelCanvas(HTMLCanvas):
         self.commit()
 
     def draw_world(self) -> None:
-        self.init_geometry_values()
         self.draw_bounding_rectangle()
         self.label_axes()
         self.draw_corners()

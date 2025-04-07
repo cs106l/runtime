@@ -76,8 +76,9 @@ class HTMLCanvas:
     def stroke(self):
         self.__dispatch("stroke", result=False)
 
-    def commit(self):
-        self.__dispatch("commit", result=False)
+    def save(self): self.__dispatch("save", result=False)
+    def restore(self): self.__dispatch("restore")
+    def commit(self): self.__dispatch("commit", result=False)
 
     @staticmethod
     def __static_dispatch(id, action, *args, result: bool = True):
