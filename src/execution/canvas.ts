@@ -17,6 +17,7 @@
  */
 
 import { z } from "zod";
+import type { PartialDeep } from "type-fest";
 
 export type CanvasID = string;
 
@@ -91,13 +92,18 @@ export class CanvasContainer implements CanvasEventHandler {
   public context: CanvasRenderingContext2D;
   protected log: BaseCanvasEvent[] = [];
 
-  constructor(public readonly id: CanvasID, public canvas: HTMLCanvasElement) {
+  constructor(
+    protected manager: CanvasManager,
+    public readonly id: CanvasID,
+    public canvas: HTMLCanvasElement,
+  ) {
     const context = canvas.getContext("2d");
     if (context === null) throw new Error(`Unable to get rendering context for created canvas`);
     this.context = context;
   }
 
   onEvent(event: BaseCanvasEvent): unknown {
+    console.log(event);
     this.log.push(event);
     switch (event.action) {
       case "sleep":
@@ -123,11 +129,11 @@ export class CanvasContainer implements CanvasEventHandler {
       case "get_fillStyle":
         return this.context.fillStyle;
       case "set_fillStyle":
-        return void (this.context.fillStyle = event.args[0]);
+        return void (this.context.fillStyle = this.color(event.args[0]));
       case "get_strokeStyle":
         return this.context.strokeStyle;
       case "set_strokeStyle":
-        return void (this.context.strokeStyle = event.args[0]);
+        return void (this.context.strokeStyle = this.color(event.args[0]));
       case "reset":
         this.context.reset();
         this.log = [];
@@ -152,18 +158,37 @@ export class CanvasContainer implements CanvasEventHandler {
     this.context.reset();
     this.log.forEach(this.onEvent.bind(this));
   }
+
+  private color(color: string) {
+    const theme = this.manager.options.theme;
+    if (color in theme) return theme[color];
+    return color;
+  }
 }
+
+export type CanvasTheme = {
+  foreground: string;
+  background: string;
+} & Record<string, string>;
 
 export type CanvasManagerOptions = {
   onEvent?: (event: BaseCanvasEvent) => void;
+  theme: CanvasTheme;
 };
 
 export class CanvasManager implements CanvasEventHandler {
   public options: CanvasManagerOptions;
   protected canvasMap = new Map<CanvasID, CanvasContainer>();
 
-  constructor(protected readonly source: Node, options?: CanvasManagerOptions) {
-    this.options = options ?? {};
+  constructor(protected readonly source: Node, options?: PartialDeep<CanvasManagerOptions>) {
+    this.options = {
+      onEvent: options?.onEvent,
+      theme: {
+        foreground: options?.theme?.foreground ?? "#000",
+        background: options?.theme?.background ?? "#fff",
+        ...options?.theme,
+      },
+    };
   }
 
   onEvent(event: BaseCanvasEvent) {
@@ -196,7 +221,7 @@ export class CanvasManager implements CanvasEventHandler {
     let container = this.canvasMap.get(id);
     if (!container) {
       const canvas = this.getCanvas();
-      container = new CanvasContainer(id, canvas);
+      container = new CanvasContainer(this, id, canvas);
       this.canvasMap.set(id, container);
     }
     return container;

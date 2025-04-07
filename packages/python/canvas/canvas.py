@@ -15,7 +15,7 @@ class HTMLCanvas:
             print("          Some operations may not work as intended")
 
     
-    def fill_rect(self, x: float, y: float, width: float, height: float):
+    def fillRect(self, x: float, y: float, width: float, height: float):
         self.__dispatch("fillRect", x, y, width, height, result=False)
 
 
