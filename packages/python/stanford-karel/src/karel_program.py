@@ -420,6 +420,6 @@ class KarelException(Exception):  # noqa: N818
 
     def __str__(self) -> str:
         return (
-            f"Karel crashed while on avenue {self.avenue} and street {self.street}, "
+            f"Karel crashed while on column {self.avenue} and row {self.street}, "
             f"facing {self.direction}\nInvalid action: {self.message}"
         )
