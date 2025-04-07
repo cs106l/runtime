@@ -134,6 +134,16 @@ class KarelCanvas(HTMLCanvas):
             self.font = font
         self.fillText(text, x, y)
 
+    def create_rectangle(self, x1: float, y1: float, x2: float, y2: float, fill: str = "", outline: bool = True):
+        self.beginPath()
+        self.rect(x1, y1, x2 - x1, y2 - y1)
+        if fill:
+            self.fillStyle = fill
+            self.fill()
+        
+        if outline:
+            self.stroke()
+
     def draw(self) -> None:
         self.reset()
         self.draw_world()
@@ -151,10 +161,10 @@ class KarelCanvas(HTMLCanvas):
         # Calculate the maximum possible cell size in both directions
         # We will use the smaller of the two as the bounding cell size
         horizontal_cell_size = (
-            self.winfo_width() - 2 * BORDER_OFFSET
+            self.width - 2 * BORDER_OFFSET
         ) / self.world.num_avenues
         vertical_cell_size = (
-            self.winfo_height() - 2 * BORDER_OFFSET
+            self.height - 2 * BORDER_OFFSET
         ) / self.world.num_streets
 
         # Save this as an instance variable for later use
@@ -164,8 +174,8 @@ class KarelCanvas(HTMLCanvas):
         self.boundary_width = self.cell_size * self.world.num_avenues
 
         # Save all these as instance variables as well
-        self.left_x = self.winfo_width() / 2 - self.boundary_width / 2
-        self.top_y = self.winfo_height() / 2 - self.boundary_height / 2
+        self.left_x = self.width / 2 - self.boundary_width / 2
+        self.top_y = self.height / 2 - self.boundary_height / 2
         self.right_x = self.left_x + self.boundary_width
         self.bottom_y = self.top_y + self.boundary_height
 
@@ -224,7 +234,6 @@ class KarelCanvas(HTMLCanvas):
                         corner_x + self.cell_size / 2,
                         corner_y + self.cell_size / 2,
                         fill=color,
-                        tags="corner",
                         outline=False,
                     )
 

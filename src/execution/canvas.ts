@@ -80,6 +80,7 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
 
   ComplexArgs("fill", z.tuple([z.enum(["nonzero", "evenodd"])]).optional()),
   Args("fillRect", z.number(), z.number(), z.number(), z.number()),
+  Args("rect", z.number(), z.number(), z.number(), z.number()),
 
   Nullary("beginPath"),
   Args("moveTo", z.number(), z.number()),
@@ -104,6 +105,7 @@ export const voidActions: CanvasAction[] = [
   "reset",
   "fill",
   "fillRect",
+  "rect",
   "beginPath",
   "moveTo",
   "lineTo",
@@ -173,6 +175,8 @@ export class CanvasContainer implements CanvasEventHandler {
         return this.context.fill(...args);
       case "fillRect":
         return this.context.fillRect(...event.args);
+      case "rect":
+        return this.context.rect(...event.args);
       case "fillText":
         if (event.args.length === 3) return this.context.fillText(...event.args);
         return this.context.fillText(...event.args);

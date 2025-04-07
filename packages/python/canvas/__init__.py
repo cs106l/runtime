@@ -57,6 +57,9 @@ class HTMLCanvas:
     def fillRect(self, x: float, y: float, width: float, height: float):
         self.__dispatch("fillRect", x, y, width, height, result=False)
 
+    def rect(self, x: float, y: float, width: float, height: float):
+        self.__dispatch("rect", x, y, width, height, result=False)
+
     def fillText(self, x: float, y: float, text: str, maxWidth: float = None):
         if maxWidth is None: self.__dispatch("fillText", x, y, text, result=False)
         else: self.__dispatch("fillText", x, y, text, maxWidth, result=False)
