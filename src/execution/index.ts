@@ -1,14 +1,11 @@
-import {
-  type WASIExecutionResult,
-  type WASIFile,
-  type WASIFS,
-} from "@cs106l/wasi";
+import { type WASIExecutionResult, type WASIFile, type WASIFS } from "@cs106l/wasi";
 import { Language, RunStatus } from "../enums";
 import { PackageManager } from "../packages";
 import type { PackageRef, PackageWorkspace } from "../packages";
 import { LanguagesConfig } from "./languages";
 import { fetchWASIFS } from "../utils";
 import { WASIWorkerHost, WASIWorkerHostKilledError } from "./wasi-host";
+import { BaseCanvasEvent, CanvasID } from "./drive";
 
 /*
  * ============================================================================
@@ -67,18 +64,89 @@ export type LanguageConfiguration = {
 
 /*
  * ============================================================================
+ * Canvas support
+ * ============================================================================
+ */
+
+export interface CanvasEventHandler {
+  onEvent(event: BaseCanvasEvent): unknown;
+}
+
+export class CanvasContainer implements CanvasEventHandler {
+  public context: CanvasRenderingContext2D;
+
+  constructor(public canvas: HTMLCanvasElement) {
+    const context = canvas.getContext("2d");
+    if (context === null) throw new Error(`Unable to get rendering context for created canvas`);
+    this.context = context;
+  }
+
+  onEvent(event: BaseCanvasEvent): unknown {
+    switch (event.action) {
+      case "sleep":
+      case "new":
+        return;
+      case "width":
+        return this.canvas.width;
+      case "setWidth":
+        return (this.canvas.width = event.args[0]);
+      case "height":
+        return this.canvas.height;
+      case "setHeight":
+        return (this.canvas.height = event.args[0]);
+      case "fillRect":
+        return this.context.fillRect(...event.args);
+    }
+  }
+}
+
+export type CanvasManagerOptions = {
+  getCanvas: () => HTMLCanvasElement;
+  onEvent?: (event: BaseCanvasEvent) => void;
+}
+
+export class CanvasManager implements CanvasEventHandler {
+  public canvases = new Map<CanvasID, CanvasContainer>();
+
+  constructor(protected options: CanvasManagerOptions) {}
+
+  onEvent(event: BaseCanvasEvent) {
+    this.options.onEvent?.(event);
+    
+    if (event.action === "sleep") return;
+
+    if (event.action === "new") {
+      const id = crypto.randomUUID();
+      this.getContainer(id);
+      return id;
+    }
+
+    const container = this.getContainer(event.id);
+    container.onEvent(event);
+  }
+
+  protected getContainer(id: CanvasID) {
+    let container = this.canvases.get(id);
+    if (!container) {
+      const canvas = this.options.getCanvas();
+      container = new CanvasContainer(canvas);
+      this.canvases.set(id, container);
+    }
+    return container;
+  }
+}
+
+/*
+ * ============================================================================
  * Code execution
  * ============================================================================
  */
 
 export type WriteFn = (data: string) => void;
-export type CanvasOutput = {
-  create: (width: number, height: number) => Promise<OffscreenCanvas>
-}
 
 export type OutputConfig = {
   write?: WriteFn;
-  canvas?: CanvasOutput;
+  canvas?: CanvasEventHandler;
 };
 
 /**
@@ -165,7 +233,7 @@ export async function run(
       fs: hostConfig.fs,
       stdout: context.write,
       stderr: context.write,
-      canvas: config.output && "canvas" in config.output ? config.output.canvas : undefined
+      canvas: config.output && "canvas" in config.output ? config.output.canvas : undefined,
     });
 
     config.onWorkerCreated?.(host);

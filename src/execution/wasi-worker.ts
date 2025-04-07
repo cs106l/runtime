@@ -1,6 +1,6 @@
-import { WASI, WASIContextOptions, WASIDrive, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
-import { CanvasDrive, CanvasDriveOptions, CanvasID } from "./drive";
-import { CanvasOutput } from ".";
+import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
+import { CanvasDrive, BaseCanvasEvent, CanvasDriveOptions, CanvasEventResult } from "./drive";
+import { SerializedStream } from "./connection";
 
 type StartWorkerMessage = {
   target: "client";
@@ -8,19 +8,10 @@ type StartWorkerMessage = {
   binaryURL: string;
   stdinBuffer: SharedArrayBuffer;
   fs: WASIFS;
-  canvas?: Omit<CanvasOutput, "create">;
+  canvasBuffer: SharedArrayBuffer;
 } & Partial<Omit<WASIContextOptions, "stdin" | "stdout" | "stderr" | "debug" | "fs">>;
 
-type CanvasReceivedMessage = {
-  target: "client",
-  type: "canvasReceived",
-  id: CanvasID,
-  canvas: OffscreenCanvas
-};
-
-export type WorkerMessage = 
-  | StartWorkerMessage
-  | CanvasReceivedMessage;
+export type WorkerMessage = StartWorkerMessage;
 
 type StdoutHostMessage = {
   target: "host";
@@ -49,20 +40,18 @@ type CrashHostMessage = {
   };
 };
 
-type CanvasRequestedMessage = {
+type CanvasEventMessage = {
   target: "host";
-  type: "canvasRequested";
-  id: CanvasID;
-  width: number;
-  height: number;
-}
+  type: "canvasEvent";
+  event: BaseCanvasEvent;
+};
 
 export type HostMessage =
   | StdoutHostMessage
   | StderrHostMessage
   | ResultHostMessage
   | CrashHostMessage
-  | CanvasRequestedMessage;
+  | CanvasEventMessage;
 
 onmessage = async (ev: MessageEvent) => {
   const data = ev.data as WorkerMessage;
@@ -96,10 +85,6 @@ onmessage = async (ev: MessageEvent) => {
         });
       }
       break;
-
-    case "canvasReceived":
-      drive?.receiveCanvas(data.id, data.canvas);
-      break;
   }
 };
 
@@ -110,17 +95,24 @@ function sendMessage(message: HostMessage) {
 let drive: CanvasDrive | null = null;
 
 function createDrive(message: StartWorkerMessage) {
+  const sleep = new Int32Array(new SharedArrayBuffer(4));
+  const canvasStream = new SerializedStream(message.canvasBuffer);
+  
   const config: CanvasDriveOptions = {
-    ...message.canvas,
-    requestCanvas: (id, width, height) => {
-      sendMessage({
-        target: "host",
-        type: "canvasRequested",
-        id,
-        width,
-        height,
-      });
-    }
+    dispatcher(message) {
+      if (message.action === "sleep") {
+        /* Sleep is handled specially, we just wait for some number of milliseconds.
+         * No communication with the main thread is needed */
+        Atomics.wait(sleep, 0, 0, message.args[0] as number);
+        return;
+      }
+
+      /* Post event to main thread where it can be rendered, and get the result */
+      sendMessage({ target: "host", type: "canvasEvent", event: message });
+
+      // Here we assume that the host CanvasManager will return the correct result
+      return canvasStream.receive() as any;
+    },
   };
 
   drive = new CanvasDrive(config, message.fs);
