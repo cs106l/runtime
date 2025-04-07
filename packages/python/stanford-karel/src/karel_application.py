@@ -195,9 +195,9 @@ class KarelApplication:
     def karel_action_decorator(
         self, karel_fn: Callable[..., None]
     ) -> Callable[..., None]:
-        def wrapper() -> None:
+        def wrapper(*args, **kwargs) -> None:
             # execute Karel function
-            karel_fn()
+            karel_fn(*args, **kwargs)
             # redraw canvas with updated state of the world
             self.canvas.draw()
             # delay by specified amount
