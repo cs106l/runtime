@@ -130,9 +130,9 @@ class KarelCanvas(HTMLCanvas):
         self.lineWidth = width
         self.stroke()
 
-    def create_text(self, x: float, y: float, text: str, font: str = ""):
-        if font:
-            self.font = font
+    def create_text(self, x: float, y: float, text: str, fill: str = "foreground", font: str = ""):
+        if fill: self.fillStyle = fill
+        if font: self.font = font
         self.fillText(text, x, y)
 
     def create_rectangle(self, x1: float, y1: float, x2: float, y2: float, fill: str = "", outline: bool = True):
