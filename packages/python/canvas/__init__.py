@@ -58,6 +58,7 @@ class HTMLCanvas:
     def __dispatch(self, action, *args, result: bool = True):
         return self.__static_dispatch(self.__id, action, *args, result=result)
     
+
     @classmethod
     def _property(cls, name: str):
         get_name = f"get_{name}"
@@ -74,6 +75,7 @@ class HTMLCanvas:
         # Install the property using those methods
         prop = property(getattr(cls, get_name), getattr(cls, set_name))
         setattr(cls, name, prop)
+
 
 HTMLCanvas._property("width")
 HTMLCanvas._property("height")
