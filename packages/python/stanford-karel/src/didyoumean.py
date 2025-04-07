@@ -127,7 +127,7 @@ def get_close_matches(word: str, possibilities: list[str]) -> list[str]:
     change default values or implementation details easily.
     """
     return [
-        w for w in difflib.get_close_matches(word, possibilities, 3, 0.7) if w != word
+        w for w in difflib.get_close_matches(word, possibilities, 3, 0.5) if w != word
     ]
 
 
