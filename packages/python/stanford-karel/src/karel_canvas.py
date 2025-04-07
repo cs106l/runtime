@@ -85,10 +85,6 @@ class KarelCanvas(HTMLCanvas):
         self.karel = karel
         self.icon = DEFAULT_ICON
 
-        self.strokeStyle = "foreground"
-        self.textAlign = "center"
-        self.textBaseline = "middle"
-        
         self.init_geometry_values()
         self.draw()
 
@@ -152,6 +148,11 @@ class KarelCanvas(HTMLCanvas):
 
     def draw(self) -> None:
         self.reset()
+
+        self.strokeStyle = "foreground"
+        self.textAlign = "center"
+        self.textBaseline = "middle"
+
         self.draw_world()
         self.draw_karel()
         self.commit()
