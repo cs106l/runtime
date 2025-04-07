@@ -140,7 +140,6 @@ export class PackageManager {
     if (this.cache.has(ref)) return this.cache.get(ref)!;
 
     const { registry, name, version } = Package.decodeRef(ref);
-    console.log(registry, name, version);
     let active = this.activeRegistries(registry ? [registry] : undefined);
     const results = await Promise.allSettled(active.map((a) => a.resolve(name, version, signal)));
 

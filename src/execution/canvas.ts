@@ -103,7 +103,6 @@ export class CanvasContainer implements CanvasEventHandler {
   }
 
   onEvent(event: BaseCanvasEvent): unknown {
-    console.log(event);
     this.log.push(event);
     switch (event.action) {
       case "sleep":

@@ -99,26 +99,19 @@ class ByteReader {
 
   public onIncomingBytes(bytes: Uint8Array) {
     this.buffer = ByteReader.concat(this.buffer, bytes);
-    console.log(
-      `ByteReader: Receiving ${bytes.length} bytes. Buffer at ${this.buffer.length} bytes`,
-    );
     while (true) {
       const length = this.readLength();
       if (!length) {
-        console.log(`ByteReader: Not enough bytes for header, skipping...`);
         break;
       }
 
-      console.log(`ByteReader: Attempting to read message of size ${length}...`);
       const payload = this.buffer.subarray(4, 4 + length);
       if (payload.length < length) {
-        console.log(`ByteReader: Not enough bytes for message, skipping...`);
         break;
       }
 
       try {
         const json = this.decoder.decode(payload);
-        console.log(`ByteReader: Got raw JSON ${json}`);
         const result = json ? JSON.parse(json) : undefined;
         this.onMessage?.(result);
       } catch (err) {
@@ -153,11 +146,9 @@ class ByteWriter {
   private encoder = new TextEncoder();
 
   public onOutgoingBytes(size: number): Uint8Array {
-    console.log(`ByteWriter: ${size} bytes requested. Buffer at ${this.buffer.length} bytes`);
     // Drain up to size bytes from buffer
     const chunk = this.buffer.subarray(0, size);
     this.buffer = this.buffer.subarray(size);
-    console.log(`ByteWriter: Sent ${chunk.length} bytes.`);
     return chunk;
   }
 
