@@ -32,12 +32,13 @@ type ResultHostMessage = {
   result: WASIExecutionResult;
 };
 
-type CrashHostMessage = {
+export type CrashHostMessage = {
   target: "host";
   type: "crash";
   error: {
     message: string;
-    type: string;
+    type?: string;
+    stack?: string;
   };
 };
 
@@ -73,11 +74,11 @@ onmessage = async (ev: MessageEvent) => {
           error = {
             message: e.message,
             type: e.constructor.name,
+            stack: e.stack,
           };
         } else {
           error = {
-            message: `unknown error - ${e}`,
-            type: "Unknown",
+            message: String(e)
           };
         }
         flushEventBuffer();
@@ -122,7 +123,7 @@ function createDrive(message: StartWorkerMessage) {
           flushEventBuffer();
           return canvasStream.receive();
         }
-        
+
         if (event.action === "commit") {
           flushEventBuffer();
           return;

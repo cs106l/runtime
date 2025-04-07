@@ -1,5 +1,5 @@
 import { WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
-import type { HostMessage, WorkerMessage } from "./wasi-worker";
+import type { CrashHostMessage, HostMessage, WorkerMessage } from "./wasi-worker";
 
 import WASIWorker from "./wasi-worker?worker&inline";
 import { SerializedStream } from "./connection";
@@ -15,6 +15,12 @@ type WASIWorkerHostContext = Partial<Omit<WASIContextOptions, "stdin" | "fs">> &
 };
 
 export class WASIWorkerHostKilledError extends Error {}
+
+export class WASIWorkerCrashedError extends Error {
+  constructor(public worker: CrashHostMessage) {
+    super(worker.error.message);
+  }
+}
 
 export class WASIWorkerHost {
   binaryURL: string;
@@ -66,7 +72,7 @@ export class WASIWorkerHost {
             }
             break;
           case "crash":
-            reject(message.error);
+            reject(new WASIWorkerCrashedError(message));
             break;
         }
       });
