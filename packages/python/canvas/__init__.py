@@ -2,7 +2,6 @@ from typing import ClassVar, Literal, Optional, TextIO
 
 from dataclasses import dataclass
 import json
-import struct
 
 TextAlign = Literal["left", "right", "center", "start", "end"]
 TextBaseline = Literal["top", "hanging", "middle", "alphabetic", "ideographic", "bottom"]
@@ -11,7 +10,7 @@ FillRule = Literal["nonzero", "evenodd"]
 
 @dataclass(repr=False) 
 class HTMLCanvas:
-    __file: ClassVar[TextIO] = open("/.canvas", "w+", encoding="utf8")s
+    __file: ClassVar[TextIO] = open("/.canvas", "w+", encoding="utf8")
 
     __id: str = ""
     __enabled: bool = True
