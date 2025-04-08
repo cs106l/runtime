@@ -28,7 +28,7 @@ class HTMLCanvas:
     __textBaseline: TextBaseline = "top"
 
     def __init__(self):
-        self.__id = self.__dispatch("new", result=True)
+        self.__id = self.__dispatch("new", return_value=True)
         if not self.__id or type(self.__id) is object:
             # If we get no response or we read back the same object we wrote,
             # then the environment is not picking up our updates!
@@ -145,7 +145,7 @@ class HTMLCanvas:
     def restore(self): self.__dispatch("restore")
 
     @staticmethod
-    def __static_dispatch(id, action, *args, result: bool = False):
+    def __static_dispatch(id, action, *args, return_value: bool = False):
         req = {}
         if len(args) > 0: req["args"] = args
         if id: req["id"] = id
@@ -153,13 +153,13 @@ class HTMLCanvas:
 
         json.dump(req, HTMLCanvas.__file)
 
-        if not result: return
+        if not return_value: return
         
         try:
             return json.load(HTMLCanvas.__file) 
         except:
             return None
         
-    def __dispatch(self, action, *args, result: bool = False):
+    def __dispatch(self, action, *args, return_value: bool = False):
         if not self.__enabled: return None
-        return self.__static_dispatch(self.__id, action, *args, result=result)
+        return self.__static_dispatch(self.__id, action, *args, return_value=return_value)
