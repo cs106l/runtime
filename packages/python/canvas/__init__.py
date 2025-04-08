@@ -1,4 +1,4 @@
-from typing import BinaryIO, ClassVar, Literal, Optional
+from typing import ClassVar, Literal, Optional, TextIO
 
 from dataclasses import dataclass
 import json
@@ -11,7 +11,7 @@ FillRule = Literal["nonzero", "evenodd"]
 
 @dataclass(repr=False) 
 class HTMLCanvas:
-    __file: ClassVar[BinaryIO] = open("/.canvas", "w+b")
+    __file: ClassVar[TextIO] = open("/.canvas", "w+", encoding="utf8")s
 
     __id: str = ""
     __enabled: bool = True
@@ -156,7 +156,10 @@ class HTMLCanvas:
 
         if not result: return
         
-        return json.load(HTMLCanvas.__file) 
+        try:
+            return json.load(HTMLCanvas.__file) 
+        except:
+            return None
         
     def __dispatch(self, action, *args, result: bool = False):
         if not self.__enabled: return None
