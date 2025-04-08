@@ -59,22 +59,22 @@ export class CanvasAwareDrive extends WASIDrive {
 class ObjectStreamReader {
   public onMessage?: (message: unknown) => void;
 
-  private buffer = new Uint8Array(0);
+  private stream = new Stream();
   private decoder = new TextDecoder();
 
   constructor() {}
 
   public onIncomingBytes(bytes: Uint8Array) {
-    this.buffer = ObjectStreamReader.concat(this.buffer, bytes);
+    this.stream.push(bytes);
     while (true) {
-      const length = this.readLength();
+      const length = this.stream.popU32();
       if (!length) {
-        break;
+        return;
       }
 
-      const payload = this.buffer.subarray(4, 4 + length);
-      if (payload.length < length) {
-        break;
+      const payload = this.stream.pop(length);
+      if (!payload) {
+        return;
       }
 
       try {
@@ -83,54 +83,103 @@ class ObjectStreamReader {
         this.onMessage?.(result);
       } catch (err) {
         console.warn("Internal: couldn't read canvas message", err);
-      } finally {
-        // Skip this message no matter what
-        this.buffer = this.buffer.subarray(4 + length);
       }
     }
-  }
-
-  /* Reads a 32-bit length off the top of the buffer. Does not modify the buffer */
-  private readLength(): number | null {
-    if (this.buffer.length < 4) return null;
-    const view = new DataView(this.buffer.buffer);
-    const length = view.getUint32(this.buffer.byteOffset);
-    return length;
-  }
-
-  private static concat(a: Uint8Array, b: Uint8Array): Uint8Array {
-    const result = new Uint8Array(a.length + b.length);
-    result.set(a);
-    result.set(b, a.length);
-    return result;
   }
 }
 
 class ObjectStreamWriter {
-  private result?: unknown;
-
-  private buffer = new Uint8Array(0);
+  private stream = new Stream();
   private encoder = new TextEncoder();
 
   public onOutgoingBytes(size: number): Uint8Array {
-    // Drain up to size bytes from buffer
-    const chunk = this.buffer.subarray(0, size);
-    this.buffer = this.buffer.subarray(size);
-    return chunk;
+    return this.stream.popMax(size);
   }
 
-  public set(result: ObjectStreamWriter["result"]) {
-    this.result = result;
-
-    // Set buffer contents
-    const json = result === undefined ? "" : JSON.stringify(this.result);
+  public set(result: unknown) {
+    const json = JSON.stringify(result);
     const payload = this.encoder.encode(json);
+    this.stream.push(payload);
+  }
+}
 
-    const full = new Uint8Array(4 + payload.length);
-    const view = new DataView(full.buffer, full.byteOffset);
-    view.setUint32(0, payload.length);
-    full.set(payload, 4);
+/**
+ * An efficient, bring-your-own-buffer queue
+ */
+class Stream {
+  private static zero = new Uint8Array(0);
 
-    this.buffer = full;
+  private chunks: Uint8Array[] = [];
+  private totalBytes = 0;
+
+  private scratch = new Uint8Array(4);
+  private scratchView = new DataView(this.scratch.buffer);
+
+  /** Pushes bytes to the queue */
+  push(bytes: Uint8Array): void {
+    if (bytes.length === 0) return;
+    this.chunks.push(bytes);
+    this.totalBytes += bytes.length;
+  }
+
+  /** Pops numBytes from the queue. Returns null if there's not enough bytes. */
+  pop(numBytes: number): Uint8Array | null {
+    if (this.totalBytes < numBytes) return null;
+    return this.popExact(numBytes);
+  }
+
+  /** Pops at most maxBytes from the queue. */
+  popMax(maxBytes: number): Uint8Array {
+    const n = Math.min(this.totalBytes, maxBytes);
+    return this.popExact(n);
+  }
+
+  /** Pushes a big-endian, unsigned 32-bit integer */
+  pushU32(value: number): void {
+    this.scratchView.setUint32(0, value);
+    this.push(this.scratch);
+  }
+
+  /** Pops a big-endian, unsigned 32-bit integer */
+  popU32(): number | null {
+    const bytes = this.pop(4);
+    if (!bytes) return null;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return view.getUint32(0);
+  }
+
+  private popExact(numBytes: number): Uint8Array {
+    if (numBytes > this.totalBytes) throw new Error("Not enough bytes");
+
+    let out: Uint8Array | null = null;
+    let offset = 0;
+
+    while (numBytes > 0) {
+      const head = this.chunks[0];
+
+      if (out === null && numBytes <= head.length) {
+        /* Optimization: Just return segment of head if requested allocation fits inside it */
+        out = head.subarray(0, numBytes);
+        this.chunks[0] = head.subarray(numBytes);
+        this.totalBytes -= numBytes;
+        if (this.chunks[0].length === 0) this.chunks.shift();
+        return out;
+      }
+
+      if (out === null) out = new Uint8Array(numBytes);
+
+      const chunk = head.subarray(0, numBytes);
+      out.set(chunk, offset);
+      offset += chunk.length;
+      numBytes -= chunk.length;
+
+      const remaining = head.subarray(chunk.length);
+      if (remaining.length === 0) this.chunks.shift();
+      else this.chunks[0] = remaining;
+    }
+
+    if (!out) return Stream.zero;
+    this.totalBytes -= out.length;
+    return out;
   }
 }

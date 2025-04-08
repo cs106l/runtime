@@ -1,4 +1,4 @@
-from typing import ClassVar, Literal, Optional
+from typing import BinaryIO, ClassVar, Literal, Optional
 
 from dataclasses import dataclass
 import json
@@ -11,9 +11,10 @@ FillRule = Literal["nonzero", "evenodd"]
 
 @dataclass(repr=False) 
 class HTMLCanvas:
-    __FILE: ClassVar[str] = "/.canvas"
+    __file: ClassVar[BinaryIO] = open("/.canvas", "r+b")
 
     __id: str = ""
+    __enabled: bool = True
 
     # Internal canvas properties
     # HTMLCanvas keeps a copy of the state of the canvas as it exists in the browser
@@ -26,8 +27,6 @@ class HTMLCanvas:
     __strokeStyle: str = "black"
     __textAlign: TextAlign = "left"
     __textBaseline: TextBaseline = "top"
-
-    __enabled: bool = True
 
     def __init__(self):
         self.__id = self.__dispatch("new", result=True)
@@ -154,27 +153,11 @@ class HTMLCanvas:
         req["action"] = action
         req_encoded = json.dumps(req).encode()
         req_encoded = struct.pack(">I", len(req_encoded)) + req_encoded
-
-        with open(HTMLCanvas.__FILE, "wb") as f:
-            f.write(req_encoded)
+        HTMLCanvas.__file.write(req_encoded)
 
         if not result: return
-
-        with open(HTMLCanvas.__FILE, "rb") as f:
-            res_length = f.read(4)
-            if len(res_length) < 4:
-                raise ValueError("Internal: Canvas result expected 32-bit length prefix")
-            res_length = struct.unpack(">I", res_length)[0]
-
-            res_encoded = f.read(res_length)
-            if len(res_encoded) < res_length:
-                raise ValueError(f"Internal: Canvas result expected payload of size {res_length} bytes, got {len(res_encoded)}")
-
-            if not res_encoded:
-                return None
-          
-            res = json.loads(res_encoded.decode())
-            return res
+        
+        return json.load(HTMLCanvas.__file) 
         
     def __dispatch(self, action, *args, result: bool = False):
         if not self.__enabled: return None
