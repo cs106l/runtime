@@ -11,7 +11,7 @@ FillRule = Literal["nonzero", "evenodd"]
 
 @dataclass(repr=False) 
 class HTMLCanvas:
-    __file: ClassVar[BinaryIO] = open("/.canvas", "r+b")
+    __file: ClassVar[BinaryIO] = open("/.canvas", "w+b")
 
     __id: str = ""
     __enabled: bool = True
