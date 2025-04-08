@@ -75,7 +75,6 @@ class ObjectStreamReader {
   }
 
   public onIncomingBytes(bytes: Uint8Array) {
-    console.log(new TextDecoder().decode(bytes));
     this.parser.write(bytes);
   }
 }
