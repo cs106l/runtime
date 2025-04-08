@@ -3,7 +3,7 @@ import type { CrashHostMessage, HostMessage, WorkerMessage } from "./wasi-worker
 
 import WASIWorker from "./wasi-worker?worker&inline";
 import { SerializedStream } from "./connection";
-import { CanvasEventHandler, voidActions } from "./canvas";
+import { CanvasEventHandler, nonVoidActions } from "./canvas";
 
 function sendMessage(worker: Worker, message: WorkerMessage, transfer?: Transferable[]) {
   worker.postMessage(message, transfer ?? []);
@@ -67,7 +67,7 @@ export class WASIWorkerHost {
             for (let i = 0; i < message.events.length; i++) {
               const event = message.events[i];
               const result = this.context.canvas?.onEvent(event);
-              if (i === message.events.length - 1 && !voidActions.includes(event.action))
+              if (i === message.events.length - 1 && nonVoidActions.has(event.action))
                 this.canvasStream.send(result as any);
             }
             break;

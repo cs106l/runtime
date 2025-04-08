@@ -1,6 +1,6 @@
 import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
 import { SerializedStream } from "./connection";
-import { BaseCanvasEvent, voidActions } from "./canvas";
+import { BaseCanvasEvent, nonVoidActions } from "./canvas";
 import { CanvasAwareDrive } from "./drive";
 
 type StartWorkerMessage = {
@@ -118,7 +118,7 @@ function createDrive(message: StartWorkerMessage) {
           return;
         }
 
-        if (!voidActions.includes(event.action)) {
+        if (nonVoidActions.has(event.action)) {
           eventBuffer.push(event);
           flushEventBuffer();
           return canvasStream.receive();

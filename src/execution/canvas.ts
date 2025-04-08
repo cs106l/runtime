@@ -50,8 +50,8 @@ function ComplexArgs<Action extends z.Primitive, Args extends z.ZodTypeAny>(
   });
 }
 
-function Property<Action extends string, Value extends z.ZodTypeAny>(action: Action, value: Value) {
-  return [Nullary(`get_${action}`), Args(`set_${action}`, value)] as const;
+function Setter<Action extends string, Value extends z.ZodTypeAny>(action: Action, value: Value) {
+  return Args(`set_${action}`, value);
 }
 
 export const CanvasEventSchema = z.discriminatedUnion("action", [
@@ -62,14 +62,14 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("new") }),
   Nullary("delete"),
 
-  ...Property("width", z.number()),
-  ...Property("height", z.number()),
-  ...Property("lineWidth", z.number()),
-  ...Property("fillStyle", z.string()),
-  ...Property("strokeStyle", z.string()),
-  ...Property("font", z.string()),
-  ...Property("textAlign", z.string()),
-  ...Property("textBaseline", z.string()),
+  Setter("width", z.number()),
+  Setter("height", z.number()),
+  Setter("lineWidth", z.number()),
+  Setter("fillStyle", z.string()),
+  Setter("strokeStyle", z.string()),
+  Setter("font", z.string()),
+  Setter("textAlign", z.string()),
+  Setter("textBaseline", z.string()),
 
   ComplexArgs(
     "fillText",
@@ -97,35 +97,19 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   Nullary("commit"),
 ]);
 
+
 /**
- * This is an optimization--since these actions return void, we don't need to wait for data
- * to be communicated back, saving on serialization overhead.
+ * This is the set of `CanvasAction` for which the browser main thread will send back
+ * a return value to the web worker thread, which will synchronously consume it.
+ * 
+ * Actions should rarely be listed here, as communicating data from the main thread back to
+ * the web worker can incur a significant loss of throughput.
+ * 
+ * Instead, think of the runtime canvas (running within the WASM binary on the web worker)
+ * as keeping its own internal copy of the canvas state. When that copy changes, it tells
+ * the browser canvas to update by dispatching an action to the filesystem. 
  */
-export const voidActions: CanvasAction[] = [
-  "sleep",
-  "delete",
-  "set_width",
-  "set_height",
-  "set_lineWidth",
-  "set_fillStyle",
-  "set_strokeStyle",
-  "set_font",
-  "set_textAlign",
-  "set_textBaseline",
-  "fillText",
-  "reset",
-  "fill",
-  "fillRect",
-  "rect",
-  "beginPath",
-  "moveTo",
-  "lineTo",
-  "stroke",
-  "closePath",
-  "save",
-  "restore",
-  "commit",
-];
+export const nonVoidActions = new Set(["new"]);
 
 export const allowedCanvasActions = CanvasEventSchema.options.map((o) => o.shape.action.value);
 export type BaseCanvasEvent = z.infer<typeof CanvasEventSchema>;
@@ -155,27 +139,18 @@ export class CanvasContainer implements CanvasEventHandler {
     switch (event.action) {
       case "sleep":
       case "new":
+      case "delete":
         return;
-      case "get_width":
-        return this.canvas.width;
       case "set_width":
         this.canvas.style.width = `${event.args[0]}px`;
         return void (this.canvas.width = event.args[0]);
-      case "get_height":
-        return this.canvas.height;
       case "set_height":
         this.canvas.style.height = `${event.args[0]}px`;
         return void (this.canvas.height = event.args[0]);
-      case "get_lineWidth":
-        return this.context.lineWidth;
       case "set_lineWidth":
         return void (this.context.lineWidth = event.args[0]);
-      case "get_fillStyle":
-        return this.context.fillStyle;
       case "set_fillStyle":
         return void (this.context.fillStyle = this.color(event.args[0]));
-      case "get_strokeStyle":
-        return this.context.strokeStyle;
       case "set_strokeStyle":
         return void (this.context.strokeStyle = this.color(event.args[0]));
       case "reset":
@@ -192,18 +167,12 @@ export class CanvasContainer implements CanvasEventHandler {
       case "fillText":
         if (event.args.length === 3) return this.context.fillText(...event.args);
         return this.context.fillText(...event.args);
-      case "get_font":
-        return this.context.font;
       case "set_font":
         return void (this.context.font = event.args[0]);
       case "set_textAlign":
         return void (this.context.textAlign = event.args[0] as any);
-      case "get_textAlign":
-        return this.context.textAlign;
       case "set_textBaseline":
         return void (this.context.textBaseline = event.args[0] as any);
-      case "get_textBaseline":
-        return this.context.textBaseline;
       case "beginPath":
         return this.context.beginPath();
       case "lineTo":
