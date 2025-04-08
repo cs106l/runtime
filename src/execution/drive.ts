@@ -63,13 +63,19 @@ class ObjectStreamReader {
   public onMessage?: (message: unknown) => void;
 
   constructor() {
-    this.parser = new JSONParser();
-    this.parser.onValue = (value) => {
+    this.parser = new JSONParser({
+      paths: ["$"], // Root objects only
+      separator: "", // Allows objects to be transmitted back to back
+      keepStack: false, // Don't keep object stack in onValue (no need)
+    });
+
+    this.parser.onValue = ({ value }) => {
       this.onMessage?.(value);
     };
   }
 
   public onIncomingBytes(bytes: Uint8Array) {
+    console.log(new TextDecoder().decode(bytes));
     this.parser.write(bytes);
   }
 }
