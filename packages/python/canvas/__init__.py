@@ -176,6 +176,6 @@ class HTMLCanvas:
             res = json.loads(res_encoded.decode())
             return res
         
-    def __dispatch(self, action, *args, result: bool = True):
+    def __dispatch(self, action, *args, result: bool = False):
         if not self.__enabled: return None
         return self.__static_dispatch(self.__id, action, *args, result=result)
