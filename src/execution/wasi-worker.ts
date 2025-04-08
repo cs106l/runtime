@@ -118,15 +118,15 @@ function createDrive(message: StartWorkerMessage) {
           return;
         }
 
+        if (event.action === "commit") {
+          flushEventBuffer();
+          return;
+        }
+
         if (nonVoidActions.has(event.action)) {
           eventBuffer.push(event);
           flushEventBuffer();
           return canvasStream.receive();
-        }
-
-        if (event.action === "commit") {
-          flushEventBuffer();
-          return;
         }
 
         eventBuffer.push(event);

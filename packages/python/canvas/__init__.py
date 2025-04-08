@@ -9,6 +9,8 @@ TextAlign = Literal["left", "right", "center", "start", "end"]
 TextBaseline = Literal["top", "hanging", "middle", "alphabetic", "ideographic", "bottom"]
 FillRule = Literal["nonzero", "evenodd"]
 
+__canvas_file = "/.canvas"
+
 @dataclass(repr=False) 
 class HTMLCanvas:
     __id: str = ""
@@ -147,20 +149,19 @@ class HTMLCanvas:
 
     @staticmethod
     def __static_dispatch(id, action, *args, result: bool = False):
-        file = f"/.canvas/{action}"
-
         req = {}
         if len(args) > 0: req["args"] = args
         req["id"] = id
+        req["action"] = action
         req_encoded = json.dumps(req).encode()
         req_encoded = struct.pack(">I", len(req_encoded)) + req_encoded
 
-        with open(file, "wb") as f:
+        with open(__canvas_file, "wb") as f:
             f.write(req_encoded)
 
         if not result: return
 
-        with open(file, "rb") as f:
+        with open(__canvas_file, "rb") as f:
             res_length = f.read(4)
             if len(res_length) < 4:
                 raise ValueError("Internal: Canvas result expected 32-bit length prefix")

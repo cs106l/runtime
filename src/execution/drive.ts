@@ -1,26 +1,39 @@
 import { DriveResult, FileDescriptor, WASIDrive, WASIFS } from "@cs106l/wasi";
 import { WASISnapshotPreview1 } from "@cs106l/wasi";
-import {
-  allowedCanvasActions,
-  BaseCanvasEvent,
-  CanvasAction,
-  CanvasEventHandler,
-  CanvasEventSchema,
-} from "./canvas";
+import { InternalCanvasEventHandler, InternalCanvasEventSchema, nonVoidActions } from "./canvas";
 
 export class CanvasAwareDrive extends WASIDrive {
-  private readers = new Map<CanvasAction, ByteReader>();
-  private writers = new Map<CanvasAction, ByteWriter>();
+  /**
+   * Reads **incoming data** from the WASM binary whenever it issues a WRITE system call
+   */
+  private reader = new ObjectStreamReader();
 
-  constructor(private handler: CanvasEventHandler, fs?: WASIFS) {
+  /**
+   * Writes **outgoing data** to the WASM binary whenever it issues a READ system call
+   */
+  private writer = new ObjectStreamWriter();
+
+  constructor(private handler: InternalCanvasEventHandler, fs?: WASIFS) {
     super(fs ?? {});
+    this.reader.onMessage = (raw: unknown) => {
+      const result = InternalCanvasEventSchema.safeParse(raw);
+
+      if (result.error) {
+        console.warn(
+          `Internal: Ignoring bad request for canvas action received from WASM binary: ${result.error.message}`,
+        );
+        return;
+      }
+
+      const event = result.data;
+      const response = this.handler.onEvent(event);
+      if (nonVoidActions.has(event.action)) this.writer.set(response);
+    };
   }
 
   override write(fd: FileDescriptor, data: Uint8Array): WASISnapshotPreview1.Result {
-    const action = this.getAction(fd);
-    if (action) {
-      const reader = this.getReader(action);
-      reader.onIncomingBytes(data);
+    if (this.isCanvasFd(fd)) {
+      this.reader.onIncomingBytes(data);
       return WASISnapshotPreview1.Result.SUCCESS;
     }
 
@@ -28,68 +41,22 @@ export class CanvasAwareDrive extends WASIDrive {
   }
 
   override read(fd: FileDescriptor, size: number): DriveResult<Uint8Array> {
-    const action = this.getAction(fd);
-    if (action) {
-      const writer = this.getWriter(action);
-      const bytes = writer.onOutgoingBytes(size);
-      return [WASISnapshotPreview1.Result.SUCCESS, bytes];
+    if (this.isCanvasFd(fd)) {
+      return [WASISnapshotPreview1.Result.SUCCESS, this.writer.onOutgoingBytes(size)];
     }
 
     return super.read(fd, size);
   }
 
-  private onCanvasMessage(message: BaseCanvasEvent) {
-    const writer = this.getWriter(message.action);
-    const result = this.handler.onEvent(message);
-    writer.set(result);
-  }
-
-  private getAction(fd: FileDescriptor): CanvasAction | undefined {
+  private isCanvasFd(fd: FileDescriptor): boolean {
     const file = this.openMap.get(fd);
-    if (!file) return;
+    if (!file) return false;
     const path = file.stat().path;
-
-    const match = path.match(/^\/\.canvas\/([^\/]+)/);
-    if (!match) return;
-    const action = match[1] as CanvasAction;
-    if (!allowedCanvasActions.includes(action)) return undefined;
-    return action;
-  }
-
-  private getReader(action: CanvasAction) {
-    let reader = this.readers.get(action);
-    if (!reader) {
-      reader = new ByteReader();
-      reader.onMessage = (payload) => {
-        // The payload will contain everything except the action name
-        const raw = Object.assign({ action }, payload);
-        const result = CanvasEventSchema.safeParse(raw);
-
-        if (result.error) {
-          console.warn(
-            `Internal: Ignoring bad request for canvas action received from WASM binary: ${result.error.message}`,
-          );
-          return;
-        }
-
-        this.onCanvasMessage(result.data);
-      };
-      this.readers.set(action, reader);
-    }
-    return reader;
-  }
-
-  private getWriter(action: CanvasAction) {
-    let writer = this.writers.get(action);
-    if (!writer) {
-      writer = new ByteWriter();
-      this.writers.set(action, writer);
-    }
-    return writer;
+    return path === "/.canvas";
   }
 }
 
-class ByteReader {
+class ObjectStreamReader {
   public onMessage?: (message: unknown) => void;
 
   private buffer = new Uint8Array(0);
@@ -98,7 +65,7 @@ class ByteReader {
   constructor() {}
 
   public onIncomingBytes(bytes: Uint8Array) {
-    this.buffer = ByteReader.concat(this.buffer, bytes);
+    this.buffer = ObjectStreamReader.concat(this.buffer, bytes);
     while (true) {
       const length = this.readLength();
       if (!length) {
@@ -139,7 +106,7 @@ class ByteReader {
   }
 }
 
-class ByteWriter {
+class ObjectStreamWriter {
   private result?: unknown;
 
   private buffer = new Uint8Array(0);
@@ -152,7 +119,7 @@ class ByteWriter {
     return chunk;
   }
 
-  public set(result: ByteWriter["result"]) {
+  public set(result: ObjectStreamWriter["result"]) {
     this.result = result;
 
     // Set buffer contents

@@ -54,11 +54,15 @@ function Setter<Action extends string, Value extends z.ZodTypeAny>(action: Actio
   return Args(`set_${action}`, value);
 }
 
-export const CanvasEventSchema = z.discriminatedUnion("action", [
+export const InternalCanvasEventSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("sleep"),
     args: z.tuple([z.number()]),
   }),
+  /**
+   * Requests to create a new canvas.
+   * Handlers for this event should return the `CanvasID` of the new canvas.
+   */
   z.object({ action: z.literal("new") }),
   Nullary("delete"),
 
@@ -97,24 +101,44 @@ export const CanvasEventSchema = z.discriminatedUnion("action", [
   Nullary("commit"),
 ]);
 
-
 /**
  * This is the set of `CanvasAction` for which the browser main thread will send back
  * a return value to the web worker thread, which will synchronously consume it.
- * 
+ *
  * Actions should rarely be listed here, as communicating data from the main thread back to
  * the web worker can incur a significant loss of throughput.
- * 
+ *
  * Instead, think of the runtime canvas (running within the WASM binary on the web worker)
  * as keeping its own internal copy of the canvas state. When that copy changes, it tells
- * the browser canvas to update by dispatching an action to the filesystem. 
+ * the browser canvas to update by dispatching an action to the filesystem.
  */
-export const nonVoidActions = new Set(["new"]);
+export const nonVoidActions = new Set<InternalCanvasAction>(["new"]);
 
-export const allowedCanvasActions = CanvasEventSchema.options.map((o) => o.shape.action.value);
-export type BaseCanvasEvent = z.infer<typeof CanvasEventSchema>;
-export type CanvasEvent<Action extends CanvasAction> = BaseCanvasEvent & { action: Action };
+/**
+ * An internal canvas event sent from the WASM binary to the canvas-aware filesystem.
+ * This is a strictly larger set than what gets sent to the client of the application (BaseCanvasEvent)
+ * since there are some actions that are handled only internally (e.g. commit).
+ */
+type InternalBaseCanvasEvent = z.infer<typeof InternalCanvasEventSchema>;
+
+type InternalCanvasAction = InternalBaseCanvasEvent["action"];
+type InternalCanvasEvent<Action extends InternalCanvasAction> = InternalBaseCanvasEvent & {
+  action: Action;
+};
+
+export interface InternalCanvasEventHandler {
+  onEvent(event: InternalBaseCanvasEvent): unknown;
+}
+
+type ExcludeUnion<
+  Union,
+  Discriminator extends keyof Union,
+  Keys extends Union[Discriminator],
+> = Union extends { [K in Discriminator]: Keys } ? never : Union;
+
+export type BaseCanvasEvent = ExcludeUnion<InternalBaseCanvasEvent, "action", "sleep" | "commit">;
 export type CanvasAction = BaseCanvasEvent["action"];
+export type CanvasEvent<Action extends CanvasAction> = InternalCanvasEvent<Action>;
 
 export interface CanvasEventHandler {
   onEvent(event: BaseCanvasEvent): unknown;
@@ -137,7 +161,6 @@ export class CanvasContainer implements CanvasEventHandler {
   onEvent(event: BaseCanvasEvent, replay?: boolean): unknown {
     if (!replay) this.log.push(event);
     switch (event.action) {
-      case "sleep":
       case "new":
       case "delete":
         return;
@@ -246,8 +269,6 @@ export class CanvasManager implements CanvasEventHandler {
 
   onEvent(event: BaseCanvasEvent) {
     this._options.onEvent?.(event);
-
-    if (event.action === "sleep") return;
 
     if (event.action === "new") {
       // Use stale canvases first
