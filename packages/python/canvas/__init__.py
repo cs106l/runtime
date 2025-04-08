@@ -1,18 +1,18 @@
-from typing import Literal, Optional
+from typing import ClassVar, Literal, Optional
 
 from dataclasses import dataclass
 import json
 import struct
-import os
 
 TextAlign = Literal["left", "right", "center", "start", "end"]
 TextBaseline = Literal["top", "hanging", "middle", "alphabetic", "ideographic", "bottom"]
 FillRule = Literal["nonzero", "evenodd"]
 
-__canvas_file = "/.canvas"
 
 @dataclass(repr=False) 
 class HTMLCanvas:
+    __FILE: ClassVar[str] = "/.canvas"
+
     __id: str = ""
 
     # Internal canvas properties
@@ -30,7 +30,6 @@ class HTMLCanvas:
     __enabled: bool = True
 
     def __init__(self):
-        os.makedirs("/.canvas", exist_ok=True)
         self.__id = self.__dispatch("new", result=True)
         if not self.__id or type(self.__id) is object:
             # If we get no response or we read back the same object we wrote,
@@ -156,12 +155,12 @@ class HTMLCanvas:
         req_encoded = json.dumps(req).encode()
         req_encoded = struct.pack(">I", len(req_encoded)) + req_encoded
 
-        with open(__canvas_file, "wb") as f:
+        with open(HTMLCanvas.__FILE, "wb") as f:
             f.write(req_encoded)
 
         if not result: return
 
-        with open(__canvas_file, "rb") as f:
+        with open(HTMLCanvas.__FILE, "rb") as f:
             res_length = f.read(4)
             if len(res_length) < 4:
                 raise ValueError("Internal: Canvas result expected 32-bit length prefix")
