@@ -177,7 +177,14 @@ export class CanvasContainer implements CanvasEventHandler {
       case "set_strokeStyle":
         return void (this.context.strokeStyle = this.color(event.args[0]));
       case "reset":
-        this.context.reset();
+        if (typeof this.context.reset === "undefined") {
+          /* Unfortunately some older and esp. mobile browsers don't have access to this function,
+           * so we apply a bandaid here */
+          this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        } else {
+          this.context.reset();
+        }
+
         this.log = [];
         return;
       case "fill":
