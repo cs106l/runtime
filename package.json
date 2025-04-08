@@ -1,6 +1,6 @@
 {
   "name": "@cs106l/runtime",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "main": "./dist/runtime.umd.js",
   "module": "./dist/runtime.mjs",
