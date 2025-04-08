@@ -1,6 +1,7 @@
 import { DriveResult, FileDescriptor, WASIDrive, WASIFS } from "@cs106l/wasi";
 import { WASISnapshotPreview1 } from "@cs106l/wasi";
 import { InternalCanvasEventHandler, InternalCanvasEventSchema, nonVoidActions } from "./canvas";
+import { JSONParser } from "@streamparser/json";
 
 export class CanvasAwareDrive extends WASIDrive {
   /**
@@ -57,34 +58,19 @@ export class CanvasAwareDrive extends WASIDrive {
 }
 
 class ObjectStreamReader {
+  private parser: JSONParser;
+
   public onMessage?: (message: unknown) => void;
 
-  private stream = new Stream();
-  private decoder = new TextDecoder();
-
-  constructor() {}
+  constructor() {
+    this.parser = new JSONParser();
+    this.parser.onValue = (value) => {
+      this.onMessage?.(value);
+    };
+  }
 
   public onIncomingBytes(bytes: Uint8Array) {
-    this.stream.push(bytes);
-    while (true) {
-      const length = this.stream.popU32();
-      if (!length) {
-        return;
-      }
-
-      const payload = this.stream.pop(length);
-      if (!payload) {
-        return;
-      }
-
-      try {
-        const json = this.decoder.decode(payload);
-        const result = json ? JSON.parse(json) : undefined;
-        this.onMessage?.(result);
-      } catch (err) {
-        console.warn("Internal: couldn't read canvas message", err);
-      }
-    }
+    this.parser.write(bytes);
   }
 }
 
@@ -99,6 +85,7 @@ class ObjectStreamWriter {
   public set(result: unknown) {
     const json = JSON.stringify(result);
     const payload = this.encoder.encode(json);
+    this.stream.clear();
     this.stream.push(payload);
   }
 }
@@ -126,6 +113,12 @@ class Stream {
   pop(numBytes: number): Uint8Array | null {
     if (this.totalBytes < numBytes) return null;
     return this.popExact(numBytes);
+  }
+
+  /** Clears the queue */
+  clear(): void {
+    this.chunks.length = 0;
+    this.totalBytes = 0;
   }
 
   /** Pops at most maxBytes from the queue. */

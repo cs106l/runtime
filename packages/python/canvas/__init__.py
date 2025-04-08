@@ -149,11 +149,10 @@ class HTMLCanvas:
     def __static_dispatch(id, action, *args, result: bool = False):
         req = {}
         if len(args) > 0: req["args"] = args
-        req["id"] = id
+        if id: req["id"] = id
         req["action"] = action
-        req_encoded = json.dumps(req).encode()
-        req_encoded = struct.pack(">I", len(req_encoded)) + req_encoded
-        HTMLCanvas.__file.write(req_encoded)
+
+        json.dump(req, HTMLCanvas.__file)
 
         if not result: return
         

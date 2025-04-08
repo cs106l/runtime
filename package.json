@@ -30,6 +30,7 @@
   "dependencies": {
     "@cs106l/wasi": "^0.7.2",
     "@obsidize/tar-browserify": "^5.2.0",
+    "@streamparser/json": "^0.0.22",
     "combine-async-iterators": "^3.0.0",
     "pako": "^2.1.0",
     "type-fest": "^4.39.1",
