@@ -165,10 +165,8 @@ export class CanvasContainer implements CanvasEventHandler {
       case "delete":
         return;
       case "set_width":
-        this.canvas.style.width = `${event.args[0]}px`;
         return void (this.canvas.width = event.args[0]);
       case "set_height":
-        this.canvas.style.height = `${event.args[0]}px`;
         return void (this.canvas.height = event.args[0]);
       case "set_lineWidth":
         return void (this.context.lineWidth = event.args[0]);
@@ -242,7 +240,7 @@ export type CanvasTheme = {
 } & Record<string, string>;
 
 export type CanvasManagerOptions = {
-  onEvent?: (event: BaseCanvasEvent) => void;
+  onCanvasEvent?: (event: BaseCanvasEvent, container: CanvasContainer) => void;
   theme: CanvasTheme;
 };
 
@@ -255,7 +253,7 @@ export class CanvasManager implements CanvasEventHandler {
 
   constructor(protected readonly source: Node, options?: PartialDeep<CanvasManagerOptions>) {
     this._options = {
-      onEvent: options?.onEvent,
+      ...options,
       theme: {
         foreground: options?.theme?.foreground ?? "#000",
         background: options?.theme?.background ?? "#fff",
@@ -275,8 +273,6 @@ export class CanvasManager implements CanvasEventHandler {
   }
 
   onEvent(event: BaseCanvasEvent) {
-    this._options.onEvent?.(event);
-
     if (event.action === "new") {
       // Use stale canvases first
       if (this.stale.length > 0) {
@@ -290,14 +286,27 @@ export class CanvasManager implements CanvasEventHandler {
       const canvas = this.getCanvas();
       const container = new CanvasContainer(id, canvas, this._options.theme);
       this.canvasMap.set(id, container);
+      this.options.onCanvasEvent?.(event, container);
       return id;
     }
 
-    if (event.action === "delete") return this.remove(event.id);
-
     const container = this.canvasMap.get(event.id);
     if (!container) return null;
-    return container.onEvent(event);
+
+    if (event.action === "delete") {
+      this.options.onCanvasEvent?.(event, container);
+      return this.remove(event.id);
+    }
+
+    const result = container.onEvent(event);
+    this.options.onCanvasEvent?.(event, container);
+    return result;
+  }
+
+  public container(id: CanvasID): CanvasContainer {
+    const container = this.canvasMap.get(id);
+    if (!container) throw new Error(`No canvas with id ${id}`);
+    return container;
   }
 
   public refresh() {
