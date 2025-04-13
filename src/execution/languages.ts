@@ -10,7 +10,7 @@ const Cpp: LanguageConfiguration = {
   steps: [
     {
       status: RunStatus.Compiling,
-      run: {
+      run: (ctx) => ({
         binary: "https://runno.dev/langs/clang.wasm",
         args: [
           "clang",
@@ -33,16 +33,16 @@ const Cpp: LanguageConfiguration = {
           "-fcolor-diagnostics",
           "-O2",
           "-o",
-          "/program.o",
+          `/${ctx.entryname}.o`,
           "-x",
           "c++",
-          "/program",
+          ctx.entrypoint,
         ],
-      },
+      }),
     },
     {
       status: RunStatus.Linking,
-      run: {
+      run: (ctx) => ({
         binary: "https://runno.dev/langs/wasm-ld.wasm",
         args: [
           "wasm-ld",
@@ -52,14 +52,14 @@ const Cpp: LanguageConfiguration = {
           "stack-size=1048576",
           "-L/sys/lib/wasm32-wasi",
           "/sys/lib/wasm32-wasi/crt1.o",
-          "/program.o",
+          `/${ctx.entryname}.o`,
           "-lc",
           "-lc++",
           "-lc++abi",
           "-o",
           "/program.wasm",
         ],
-      },
+      }),
     },
     {
       status: RunStatus.Running,
@@ -78,11 +78,11 @@ const Python: LanguageConfiguration = {
   steps: [
     {
       status: RunStatus.Running,
-      run: {
+      run: (ctx) => ({
         binary: "https://runno.dev/langs/python-3.11.3.wasm",
-        args: ["python", "/program"],
+        args: ["python", ctx.entrypoint],
         env: { PYTHONUNBUFFERED: "1", PYTHONPATH: "/.packages" },
-      },
+      }),
     },
   ],
 };

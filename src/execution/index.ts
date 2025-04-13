@@ -1,4 +1,4 @@
-import { type WASIExecutionResult, type WASIFile, type WASIFS } from "@cs106l/wasi";
+import { WASITimestamps, type WASIExecutionResult, type WASIFile, type WASIFS } from "@cs106l/wasi";
 import { Language, RunStatus } from "../enums";
 import { PackageManager } from "../packages";
 import type { PackageRef, PackageWorkspace } from "../packages";
@@ -14,6 +14,12 @@ import { InternalCanvasEventHandler } from "./canvas";
  */
 
 export type ExecutionContext = {
+  /**
+   * The name of the file listed in the entrypoint path, without the extension.
+   * For example, `/path/to/entrypoint.file.txt` becomes `entrypoint.file`
+   */
+  entryname: string;
+  entrypoint: string;
   packages: PackageWorkspace;
   write: WriteFn;
 };
@@ -71,6 +77,48 @@ export type LanguageConfiguration = {
  * ============================================================================
  */
 
+export type Filesystem = {
+  /**
+   * Each path is a path to a single file.
+   * It should have a leading "/" and no trailing slash.
+   */
+  [path: string]: FileEntry;
+};
+
+export type FileEntry = (TextFile | BinaryFile) & {
+  /**
+   * Access, modification, and (permission) change timestamps.
+   * If not provided, will be set to the time of execution.
+   */
+  timestamps?: WASITimestamps;
+};
+
+export type TextFile = {
+  mode: "string";
+  content: string;
+};
+
+export type BinaryFile = {
+  mode: "binary";
+  content: Uint8Array;
+};
+
+function toWasiFS(fs: Filesystem): WASIFS {
+  const result: WASIFS = {};
+  for (const [path, entry] of Object.entries(fs)) {
+    result[path] = {
+      ...entry,
+      path,
+      timestamps: entry.timestamps ?? {
+        access: new Date(),
+        modification: new Date(),
+        change: new Date(),
+      },
+    };
+  }
+  return result;
+}
+
 export type WriteFn = (data: string) => void;
 
 export type OutputConfig = {
@@ -92,6 +140,8 @@ export type RunConfig = {
   onWorkerCreated?: (host: WorkerHost) => void;
   output?: WriteFn | OutputConfig;
   packages?: PackageWorkspace | PackageRef[];
+  files?: Filesystem;
+  entrypoint?: string;
   signal?: AbortSignal;
 };
 
@@ -129,11 +179,14 @@ export async function run(
   const filesystem = await context.packages.build(config.signal);
   vfs = { ...vfs, ...filesystem };
 
-  /* Place user code at /program file */
+  /* User files */
+  if (config.files) vfs = { ...vfs, ...toWasiFS(config.files) };
+
+  /* Place user code at entrypoint file */
   vfs = {
     ...vfs,
-    "/program": {
-      path: "program",
+    [context.entrypoint]: {
+      path: context.entrypoint,
       content: `${context.packages.prefixCode(vfs)}${code}${context.packages.postfixCode(vfs)}`,
       mode: "string",
       timestamps: {
@@ -205,7 +258,18 @@ async function createContext(
     } else packages = config.packages;
   } else packages = pm.createWorkspace();
 
-  return { write, packages };
+  const entrypoint = config.entrypoint ?? "/program";
+  const entryname = getFileNameWithoutExtension(entrypoint);
+
+  return { entryname, entrypoint, write, packages };
+}
+
+function getFileNameWithoutExtension(path: string) {
+  const cleanPath = path.trim().replace(/\/+$/, "");
+  const file = cleanPath.split("/").pop()!.trim();
+  const parts = file.split(".");
+  if (parts.length === 1) return parts[0];
+  return parts.slice(0, -1).join(".");
 }
 
 function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
