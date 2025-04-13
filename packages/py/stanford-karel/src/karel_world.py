@@ -139,7 +139,6 @@ class KarelWorld:
         if not world_file:
             default_world = default_worlds_path / DEFAULT_WORLD_FILE
             if default_world.is_file():
-                print("Using default world...")
                 return default_world
             raise FileNotFoundError(
                 f"Default world cannot be found in: {default_worlds_path}\n"

@@ -13,7 +13,7 @@ Email: nbowman@stanford.edu
 Date of Creation: 10/1/2019
 """
 
-from typing import Callable
+from typing import Callable, Optional
 
 import sys
 from pathlib import Path
@@ -41,6 +41,32 @@ def __get_world_file() -> str:
         world_file = student_code_file.stem
 
     return world_file
+
+def __get_world_file() -> str:
+    def try_find(path: Path) -> Optional[str]:
+        return path.as_posix() if path.is_file() else None
+
+    def try_find_any(dir: Path) -> Optional[str]:
+        for file in dir.glob("*.w"):
+            if file.is_file():
+                return file.as_posix()
+        return None
+
+    main_file = Path(sys.argv[0]).absolute()
+    main_dir = main_file.parent
+    worlds_dir = main_dir / "worlds"
+    builtin_worlds_dir = Path(__file__).absolute().parent / "worlds"
+    filename = f"{main_file.stem}.w"
+
+    return (
+        try_find(worlds_dir / filename)
+        or try_find(main_dir / filename)
+        or try_find(builtin_worlds_dir / filename)
+        or try_find_any(worlds_dir)
+        or try_find_any(main_dir)
+        or try_find_any(builtin_worlds_dir)
+        or ""
+    )
 
 
 __karel = KarelProgram(__get_world_file())
