@@ -82,7 +82,8 @@ def karel_action_decorator(
         __canvas.draw()
         # delay by specified amount
         # TODO: This should be replaced by time.sleep once the environment supports it
-        HTMLCanvas.sleep(300)
+        speed = __karel.world.init_speed
+        HTMLCanvas.sleep((1 - speed / 100) * 1000)
 
     return wrapper
 

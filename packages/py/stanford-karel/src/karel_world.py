@@ -65,7 +65,7 @@ COLOR_MAP = {
     "Blue": "blue",
     "Yellow": "yellow",
 }
-INIT_SPEED = 50
+INIT_SPEED = 75
 VALID_WORLD_KEYWORDS = [
     "dimension",
     "wall",
