@@ -64,7 +64,6 @@ def __get_world_file() -> str:
         or try_find(builtin_worlds_dir / filename)
         or try_find_any(worlds_dir)
         or try_find_any(main_dir)
-        or try_find_any(builtin_worlds_dir)
         or ""
     )
 
