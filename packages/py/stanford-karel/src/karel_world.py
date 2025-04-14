@@ -99,8 +99,8 @@ class KarelWorld:
         self.walls: set[Wall] = set()
 
         # Dimensions of the world
-        self.num_streets = 1
-        self.num_avenues = 1
+        self.num_streets = 8
+        self.num_avenues = 8
 
         # Initial Karel state saved to enable world reset
         self.karel_start_location = (1, 1)
