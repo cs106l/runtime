@@ -159,7 +159,7 @@ class KarelCanvas(HTMLCanvas):
 
     def draw_world(self) -> None:
         self.draw_bounding_rectangle()
-        self.label_axes()
+        # self.label_axes()
         self.draw_corners()
         self.draw_all_beepers()
         self.draw_all_walls()
