@@ -5,7 +5,7 @@ import type { PackageRef, PackageWorkspace } from "../packages";
 import { LanguagesConfig } from "./languages";
 import { fetchWASIFS } from "../utils";
 import { WASIWorkerHost, WASIWorkerHostKilledError } from "./wasi-host";
-import { InternalCanvasEventHandler } from "./canvas";
+import { CanvasEventHandler } from "./canvas";
 
 /*
  * ============================================================================
@@ -123,7 +123,7 @@ export type WriteFn = (data: string) => void;
 
 export type OutputConfig = {
   write?: WriteFn;
-  canvas?: InternalCanvasEventHandler;
+  canvas?: CanvasEventHandler;
 };
 
 /**
