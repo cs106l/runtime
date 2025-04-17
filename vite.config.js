@@ -27,4 +27,8 @@ export default defineConfig({
       apply: "build",
     },
   ],
+  test: {
+    globals: true,
+    environment: "node"
+  }
 });

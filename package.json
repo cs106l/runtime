@@ -1,6 +1,6 @@
 {
   "name": "@cs106l/runtime",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "description": "A simple WebAssembly runtime and package manager for the browser",
   "main": "./dist/runtime.umd.js",
   "module": "./dist/runtime.mjs",
@@ -12,7 +12,8 @@
     "build": "npx tsc --noEmit && vite build",
     "bundler": "npx ts-node bundler.ts",
     "format": "npx prettier . --write --config .prettierrc",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "npx vitest"
   },
   "repository": {
     "type": "git",
@@ -45,6 +46,7 @@
     "fast-glob": "^3.3.3",
     "tar": "^7.4.3",
     "typescript": "^5.8.2",
-    "vite": "^6.2.5"
+    "vite": "^6.2.5",
+    "vitest": "^3.1.1"
   }
 }

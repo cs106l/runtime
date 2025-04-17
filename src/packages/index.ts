@@ -53,20 +53,19 @@ export abstract class Package {
   }
 
   static decodeRef(ref: PackageRef): DecodedPackageRef {
-    ref = ref.trim();
-    if (ref.startsWith(":") || ref.endsWith("@")) throw new PackageNotFoundError(ref);
-    if (ref.startsWith("@")) return { name: ref };
+    const trimmed = ref.trim();
 
-    let colon = ref.indexOf(":");
+    let colon = trimmed.indexOf(":");
     if (colon < 0) colon = -1;
-    const registry = ref.substring(0, colon).trim() || undefined;
+    const registry = trimmed.substring(0, colon).trim() || undefined;
 
-    let at = ref.lastIndexOf("@");
-    if (at < 0) at = ref.length;
-    if (ref.substring(colon + 1, at).trim().length == 0) at = ref.length;
-    const version = ref.substring(at + 1).trim() || undefined;
+    let at = trimmed.lastIndexOf("@");
+    if (at < 0) at = trimmed.length;
+    if (at < colon) at = colon + 1;
+    const version = trimmed.substring(at + 1).trim() || undefined;
 
-    const name = ref.substring(colon + 1, at);
+    const name = trimmed.substring(colon + 1, at).trim();
+    if (!name) throw new PackageNotFoundError(ref);
     return { registry, name, version };
   }
 }
