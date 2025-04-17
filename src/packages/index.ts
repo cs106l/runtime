@@ -6,6 +6,7 @@ export class PackageNotFoundError extends Error {
   constructor(public readonly ref: PackageRef) {
     super(`Could not find package: ${ref}`);
     this.name = "PackageNotFoundError";
+    Object.setPrototypeOf(this, PackageNotFoundError.prototype);
   }
 }
 
