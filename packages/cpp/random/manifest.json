@@ -1,9 +1,0 @@
-{
-  "name": "random",
-  "description": "Utilities for random number generation",
-  "version": "2024.1",
-  "build": 0,
-  "runtime": {
-    "prefixFile": "hello.cpp"
-  }
-}
