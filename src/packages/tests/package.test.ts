@@ -25,4 +25,7 @@ test("Decode package refs", () => {
   decoded(":@", { name: "" });
   decoded("@:", { name: "", registry: "@" });
   decoded("registry:   @version", { name: "", registry: "registry", version: "version" })
+
+  /** Ref names can include "@" in the package name, but if so the version must be given */
+  decoded("@cs106l/runtime@0.1.0", { name: "@cs106l/runtime", version: "0.1.0" });
 });
