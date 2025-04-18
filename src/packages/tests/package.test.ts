@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { DecodedPackageRef, Package, PackageNotFoundError } from "..";
 
-test("Decode package refs: valid", () => {
+test("Decode package refs", () => {
   function decoded(input: string, expected: DecodedPackageRef) {
     expect(Package.decodeRef(input)).toEqual(expected);
   }
@@ -16,19 +16,13 @@ test("Decode package refs: valid", () => {
   decoded("@registry:name@:version", { name: "name", registry: "@registry", version: ":version"});
   decoded("::", { name: ":" });
   decoded("@@", { name: "@" });
-});
 
-test("Decode package refs: invalid", () => {
-  function invalid(input: string) {
-    expect(() => Package.decodeRef(input)).toThrow(new PackageNotFoundError(input));
-  }
-
-  invalid("");
-  invalid("  ");
-  invalid(":");
-  invalid("  : ")
-  invalid("@");
-  invalid(":@");
-  invalid("@:");
-  invalid("registry:   @version")
+  decoded("", { name: "" });
+  decoded("  ", { name: "" });
+  decoded(":", { name: "" });
+  decoded("  : ", { name: "" })
+  decoded("@", { name: "" });
+  decoded(":@", { name: "" });
+  decoded("@:", { name: "", registry: "@" });
+  decoded("registry:   @version", { name: "", registry: "registry", version: "version" })
 });

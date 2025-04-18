@@ -66,7 +66,6 @@ export abstract class Package {
     const version = trimmed.substring(at + 1).trim() || undefined;
 
     const name = trimmed.substring(colon + 1, at).trim();
-    if (!name) throw new PackageNotFoundError(ref);
     return { registry, name, version };
   }
 }
