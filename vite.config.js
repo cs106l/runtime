@@ -26,9 +26,5 @@ export default defineConfig({
       ...typescript({ outDir: "dist" }),
       apply: "build",
     },
-  ],
-  test: {
-    globals: true,
-    environment: "node"
-  }
+  ]
 });
