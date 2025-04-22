@@ -284,3 +284,23 @@ export class StreamReader extends Stream {
     this._bytesRead += count;
   }
 }
+
+/**
+ * Represents a spin lock stategy for how to wait on a spin lock.
+ * By default, this lock busy waits. However, subclasses can change this strategy.
+ */
+class SpinLockStrategy {
+  /**
+   * Resets the state of the locking strategy.
+   * This will be called before a consumer of the lock begins locking.
+   */
+  public reset(): void {}
+
+  /**
+   * Called on every spin.
+   * @returns The number of milliseconds to sleep.
+   *          In synchronous contexts, anything other than 0 will cause the waiting thread to go to sleep.
+   *          In asynchronous contexts, anything other than 0 will cause the thread to await a timeout.
+   */
+  public spin(): number { return 0; }
+}
