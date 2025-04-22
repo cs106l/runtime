@@ -43,8 +43,8 @@ class Atomic {
  */
 export class Stream {
   /**
-   * Creates a `SharedArrayBuffer` with its metadata already set.
-   * @param capacity The stream capacity in bytes.
+   * Creates a `SharedArrayBuffer` for use with streaming data.
+   * @param capacity The stream capacity in bytes, excluding metadata.
    * @returns A `SharedArrayBuffer` that can be used to construct stream readers/writers.
    */
   public static createBuffer(capacity: number): SharedArrayBuffer {
@@ -337,72 +337,17 @@ class AsyncLock extends Lock {
   }
 }
 
-class ScratchBuffer {
-  private _size = 0;
-  private _capacity = 0;
-
-  private _buffer!: ArrayBuffer;
-  private _data!: Uint8Array;
-  private _view!: DataView;
-
-  public get size() {
-    return this._size;
-  }
-
-  public get data() {
-    return this._data;
-  }
-
-  public get view() {
-    return this._view;
-  }
-
-  constructor() {
-    this.allocate();
-  }
-
-  private allocate() {
-    this._buffer = new ArrayBuffer(this._capacity);
-    this._data = new Uint8Array(this._buffer, 0, this._capacity);
-    this._view = new DataView(this._buffer, 0, this._capacity);
-  }
-
-  /**
-   * Reserves count bytes in the buffer for writing and empties the buffer.
-   * @param count Number of bytes to reserve
-   */
-  reserve(count: number) {
-    this._capacity = count;
-    this._size = 0;
-  }
-
-  /**
-   * Pushes data from `bytes` up to the reserved capacity, returning the number of bytes written.
-   * @param bytes A byte array to read from.
-   */
-  push(bytes: Uint8Array): number {
-    if (this._buffer.byteLength < this._capacity) {
-      this.allocate();
-    }
-
-    const chunk = bytes.subarray(0, this._capacity - this._size);
-    this.data.set(chunk, this._size);
-    this._size += chunk.length;
-    return chunk.length;
-  }
-}
-
 export type DataStreamOptions<Async extends boolean = false> = {
   async?: Async;
   buffer: SharedArrayBuffer;
   strategy?: LockStrategy;
 };
 
-type WriterFn<Async extends boolean, T> = Async extends true
+export type WriterFn<Async extends boolean, T> = Async extends true
   ? (value: T) => Promise<void>
   : (value: T) => void;
 
-type ReaderFn<Async extends boolean, T, Args extends unknown[] = []> = Async extends true
+export type ReaderFn<Async extends boolean, T, Args extends unknown[] = []> = Async extends true
   ? (...args: Args) => Promise<T>
   : (...args: Args) => T;
 
@@ -426,19 +371,24 @@ class DataStream<Async extends boolean> {
 export class DataStreamWriter<Async extends boolean = false> extends DataStream<Async> {
   private stream: StreamWriter;
   private encoder = new TextEncoder();
+  private isAsyncWriting = false;
 
   uint8: WriterFn<Async, number>;
   uint16: WriterFn<Async, number>;
   uint32: WriterFn<Async, number>;
-  uint64: WriterFn<Async, bigint>;
+  uint64: WriterFn<Async, number>;
 
   int8: WriterFn<Async, number>;
   int16: WriterFn<Async, number>;
   int32: WriterFn<Async, number>;
-  int64: WriterFn<Async, bigint>;
+  int64: WriterFn<Async, number>;
 
   float32: WriterFn<Async, number>;
   float64: WriterFn<Async, number>;
+
+  bytesRaw: WriterFn<Async, Uint8Array>;
+  bytes: WriterFn<Async, Uint8Array>;
+  string: WriterFn<Async, string>;
 
   constructor(options: DataStreamOptions<Async>) {
     super(options);
@@ -447,15 +397,19 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
     this.uint8 = this.createWriter(1, (v, r) => r.view.setUint8(0, v));
     this.uint16 = this.createWriter(2, (v, r) => r.view.setUint16(0, v));
     this.uint32 = this.createWriter(4, (v, r) => r.view.setUint32(0, v));
-    this.uint64 = this.createWriter(8, (v, r) => r.view.setBigUint64(0, v));
+    this.uint64 = this.createWriter(8, (v, r) => r.view.setBigUint64(0, BigInt(v)));
 
     this.int8 = this.createWriter(1, (v, r) => r.view.setInt8(0, v));
     this.int16 = this.createWriter(2, (v, r) => r.view.setInt16(0, v));
     this.int32 = this.createWriter(4, (v, r) => r.view.setInt32(0, v));
-    this.int64 = this.createWriter(8, (v, r) => r.view.setBigInt64(0, v));
+    this.int64 = this.createWriter(8, (v, r) => r.view.setBigInt64(0, BigInt(v)));
 
     this.float32 = this.createWriter(4, (v, r) => r.view.setFloat32(0, v));
     this.float64 = this.createWriter(8, (v, r) => r.view.setFloat64(0, v));
+
+    this.bytesRaw = this.createRawBytesWriter();
+    this.bytes = this.createBytesWriter();
+    this.string = this.createStringWriter();
   }
 
   private createWriter<T>(
@@ -464,6 +418,12 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
   ): WriterFn<Async, T> {
     const fn = this.async
       ? async (value: T) => {
+          if (this.isAsyncWriting)
+            throw new Error(
+              "Attempt to write to the stream before an on-going write has finished. You may have forgotten to `await` one of the DataStreamWriter methods.",
+            );
+          this.isAsyncWriting = true;
+
           let offset = 0;
           while (true) {
             const chunkSize = Math.min(count - offset, this.stream.capacity);
@@ -481,7 +441,10 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
             write(value, res, offset);
             res.commit();
             offset += chunkSize;
-            if (offset === count) return;
+            if (offset === count) {
+              this.isAsyncWriting = false;
+              return;
+            }
           }
         }
       : (value: T) => {
@@ -508,22 +471,120 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
 
     return fn as WriterFn<Async, T>;
   }
+
+  private createRawBytesWriter(): WriterFn<Async, Uint8Array> {
+    const writeChunk = (value: Uint8Array, res: StreamWriterReservation, offset: number) => {
+      res.data.set(value.subarray(offset, offset + res.data.length));
+    };
+
+    const fn = this.async
+      ? async (value: Uint8Array) => {
+          const writer = this.createWriter(value.length, writeChunk);
+          await writer(value);
+        }
+      : (value: Uint8Array) => {
+          const writer = this.createWriter(value.length, writeChunk);
+          writer(value);
+        };
+    return fn as WriterFn<Async, Uint8Array>;
+  }
+
+  private createBytesWriter(): WriterFn<Async, Uint8Array> {
+    const fn = this.async
+      ? async (value: Uint8Array) => {
+          await this.uint32(value.length);
+          await this.bytesRaw(value);
+        }
+      : (value: Uint8Array) => {
+          this.uint32(value.length);
+          this.bytesRaw(value);
+        };
+    return fn as WriterFn<Async, Uint8Array>;
+  }
+
+  private createStringWriter(): WriterFn<Async, string> {
+    const fn = this.async
+      ? async (value: string) => {
+          await this.bytes(this.encoder.encode(value));
+        }
+      : (value: string) => {
+          this.bytes(this.encoder.encode(value));
+        };
+    return fn as WriterFn<Async, string>;
+  }
+}
+
+class ScratchBuffer {
+  private _size = 0;
+  private _capacity = 0;
+
+  private _buffer;
+  private _data: Uint8Array;
+  private _view: DataView;
+
+  public get size() {
+    return this._size;
+  }
+
+  public get data() {
+    return this._data;
+  }
+
+  public get view() {
+    return this._view;
+  }
+
+  constructor() {
+    this._buffer = new ArrayBuffer(0);
+    this._data = new Uint8Array(this._buffer);
+    this._view = new DataView(this._buffer);
+  }
+
+  /**
+   * Reserves count bytes in the buffer for writing and empties the buffer.
+   * @param count Number of bytes to reserve
+   */
+  reserve(count: number) {
+    this._capacity = count;
+    this._size = 0;
+  }
+
+  /**
+   * Pushes data from `bytes` up to the reserved capacity, returning the number of bytes written.
+   * @param bytes A byte array to read from.
+   */
+  push(bytes: Uint8Array): number {
+    if (this._buffer.byteLength < this._capacity) {
+      this._buffer = new ArrayBuffer(this._capacity);
+    }
+
+    if (this._data.byteLength !== this._capacity) {
+      this._data = new Uint8Array(this._buffer, 0, this._capacity);
+      this._view = new DataView(this._buffer, 0, this._capacity);
+    }
+
+    const chunk = bytes.subarray(0, this._capacity - this._size);
+    this.data.set(chunk, this._size);
+    this._size += chunk.length;
+    return chunk.length;
+  }
 }
 
 export class DataStreamReader<Async extends boolean = false> extends DataStream<Async> {
   private stream: StreamReader;
   private scratch = new ScratchBuffer();
   private decoder = new TextDecoder();
+  private isAsyncReading = false;
 
   uint8: ReaderFn<Async, number>;
   uint16: ReaderFn<Async, number>;
   uint32: ReaderFn<Async, number>;
-  uint64: ReaderFn<Async, bigint>;
+  uint64: ReaderFn<Async, number>;
 
   int8: ReaderFn<Async, number>;
   int16: ReaderFn<Async, number>;
   int32: ReaderFn<Async, number>;
-  int64: ReaderFn<Async, bigint>;
+  int64: ReaderFn<Async, number>;
 
   float32: ReaderFn<Async, number>;
   float64: ReaderFn<Async, number>;
@@ -531,20 +592,20 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
   /**
    * Reads `count` bytes from the stream.
    * @param count Number of bytes to read.
-   * @returns The consumed bytes. This is a view over an internal scratch buffer.
+   * @returns The consumed bytes. This is a view over an intermediate buffer.
    *          **You must not consume from this buffer after reading another object from this reader, or it will be corrupted!**
    */
-  bytes: ReaderFn<Async, Uint8Array, [count: number]>;
+  bytesRaw: ReaderFn<Async, Uint8Array, [count: number]>;
 
   /**
    * Reads a length-prefixed byte array from the stream.
-   * @returns The consumed bytes. This is a view over an internal scratch buffer.
+   * @returns The consumed bytes. This is a view over an intermediate buffer.
    *          **You must not consume from this buffer after reading another object from this reader, or it will be corrupted!**
    *
    * It is assumed that the beginning of the value will be a `uint32` representing
    * the length of the byte array.
    */
-  bytesPrefixed: ReaderFn<Async, Uint8Array>;
+  bytes: ReaderFn<Async, Uint8Array>;
 
   /**
    * Reads a length-prefixed UTF8 string from the stream.
@@ -563,18 +624,18 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
     this.uint8 = this.createReader(1, (v) => v.getUint8(0));
     this.uint16 = this.createReader(2, (v) => v.getUint16(0));
     this.uint32 = this.createReader(4, (v) => v.getUint32(0));
-    this.uint64 = this.createReader(8, (v) => v.getBigUint64(0));
+    this.uint64 = this.createReader(8, (v) => Number(v.getBigUint64(0)));
 
     this.int8 = this.createReader(1, (v) => v.getInt8(0));
     this.int16 = this.createReader(2, (v) => v.getInt16(0));
     this.int32 = this.createReader(4, (v) => v.getInt32(0));
-    this.int64 = this.createReader(8, (v) => v.getBigInt64(0));
+    this.int64 = this.createReader(8, (v) => Number(v.getBigInt64(0)));
 
     this.float32 = this.createReader(4, (v) => v.getFloat32(0));
     this.float64 = this.createReader(8, (v) => v.getFloat64(0));
 
+    this.bytesRaw = this.createRawBytesReader();
     this.bytes = this.createBytesReader();
-    this.bytesPrefixed = this.createBytesPrefixedReader();
     this.string = this.createStringReader();
   }
 
@@ -607,6 +668,12 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
 
     const fn = this.async
       ? async () => {
+          if (this.isAsyncReading)
+            throw new Error(
+              "Attempt to read from the stream before an on-going read has finished. You may have forgotten to `await` one of the DataStreamReader methods.",
+            );
+          this.isAsyncReading = true;
+
           this.scratch.reserve(count);
 
           while (true) {
@@ -622,7 +689,10 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
             }
 
             const result = tryRead(view);
-            if (result !== undefined) return result;
+            if (result !== undefined) {
+              this.isAsyncReading = false;
+              return result;
+            }
           }
         }
       : () => {
@@ -648,7 +718,7 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
     return fn as ReaderFn<Async, T>;
   }
 
-  private createBytesReader(): ReaderFn<Async, Uint8Array, [number]> {
+  private createRawBytesReader(): ReaderFn<Async, Uint8Array, [number]> {
     const copy = (v: DataView) => new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
     const fn = this.async
       ? async (count: number) => {
@@ -663,15 +733,15 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
     return fn as ReaderFn<Async, Uint8Array, [number]>;
   }
 
-  private createBytesPrefixedReader(): ReaderFn<Async, Uint8Array> {
+  private createBytesReader(): ReaderFn<Async, Uint8Array> {
     const fn = this.async
       ? async () => {
           const count = await this.uint32();
-          return await this.bytes(count);
+          return await this.bytesRaw(count);
         }
       : () => {
           const count = this.uint32() as number;
-          return this.bytes(count) as Uint8Array;
+          return this.bytesRaw(count) as Uint8Array;
         };
     return fn as ReaderFn<Async, Uint8Array>;
   }
@@ -679,11 +749,11 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
   private createStringReader(): ReaderFn<Async, string> {
     const fn = this.async
       ? async () => {
-          const bytes = await this.bytesPrefixed();
+          const bytes = await this.bytes();
           return this.decoder.decode(bytes);
         }
       : () => {
-          const bytes = this.bytesPrefixed() as Uint8Array;
+          const bytes = this.bytes() as Uint8Array;
           return this.decoder.decode(bytes);
         };
     return fn as ReaderFn<Async, string>;
