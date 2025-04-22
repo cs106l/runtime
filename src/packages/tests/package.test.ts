@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { DecodedPackageRef, Package, PackageNotFoundError } from "..";
+import { DecodedPackageRef, Package } from "..";
 
 test("Decode package refs", () => {
   function decoded(input: string, expected: DecodedPackageRef) {
