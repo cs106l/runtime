@@ -317,6 +317,7 @@ export class StreamReader extends Stream {
    * to avoid clobbering written data. This method may throw if it is not.
    */
   consume(count: number): void {
+    if (count === 0) return;
     if (this.priv_write >= this.read) {
       if (count <= this.priv_write - this.read) {
         this.read += count;
@@ -528,10 +529,12 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
 
     const fn = this.async
       ? async (value: Uint8Array) => {
+          if (value.length === 0) return;
           const writer = this.createWriter(value.length, writeChunk, true);
           await writer(value);
         }
       : (value: Uint8Array) => {
+          if (value.length === 0) return;
           const writer = this.createWriter(value.length, writeChunk, true);
           writer(value);
         };

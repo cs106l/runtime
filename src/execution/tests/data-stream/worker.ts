@@ -30,6 +30,7 @@ export type WorkerErrorMessage = {
 export type FinishedReadingMessage<T> = {
   type: "finished";
   values: readonly T[];
+  ms: number;
 };
 
 function sendMessage(message: WorkerToHostMessage) {
@@ -63,7 +64,12 @@ async function reader<Async extends boolean, T>(message: StartReadingMessage<Asy
 
   const values: T[] = [];
 
+  let ms = 0;
+
   for (const value of message.values) {
+
+    const start = performance.now();
+
     if (message.method === "bytesRaw") {
       // If we are reading raw bytes, we need to pass a count to the method
       const array = value as Uint8Array;
@@ -73,6 +79,8 @@ async function reader<Async extends boolean, T>(message: StartReadingMessage<Asy
       values.push(await method());
     }
 
+    ms += performance.now() - start;
+
     /**
      * Need to slice byte buffer copies or we get a contract violation
      */
@@ -81,7 +89,7 @@ async function reader<Async extends boolean, T>(message: StartReadingMessage<Asy
     }
   }
 
-  sendMessage({ type: "finished", values });
+  sendMessage({ type: "finished", values, ms });
 }
 
 self.onmessage = async (e) => {
