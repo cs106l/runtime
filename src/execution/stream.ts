@@ -154,35 +154,83 @@ export class StreamWriter extends Stream {
 
   /**
    * Requests a contiguous reservation for writing.
-   * @param count The number of bytes to be written. Must be less than or equal to `capacity`.
-   * @returns A `StreamWriterReservation` if an allocation was possible, otherwise `null`.
+   *
+   * @param count     The number of bytes to be written. Must be positive.
+   *                  If `flexible` is not `true`, can be at most `Math.ceil(capacity / 2)` to avoid deadlock.
+   *
+   * @param flexible  Whether the reservation is flexible (i.e. it may contain fewer than the number of bytes requested).
+   *                  Flexible reservations will never be empty.
+   *                  When writing a variable sized allocation, you should set this this to `true` and handle fragmentation yourself.
+   *
+   * @returns         A `StreamWriterReservation` if an allocation was possible, otherwise `null`.
    *
    * This method makes no changes to the shared state. For the writes to be visible, you must call
    * `commit()` afterwards with the returned reservation.
    *
    * This method does not block or spin.
    */
-  reserve(count: number): StreamWriterReservation | null {
-    if (count < 1 || count > this.capacity) {
-      throw new Error(`Can't reserve ${count} bytes. Capacity is ${this.capacity}`);
+  reserve(count: number, flexible?: boolean): StreamWriterReservation | null {
+    if (count <= 0) throw new Error(`Cannot request a reservation of ${count} bytes!`);
+
+    if (!flexible && count > this.len / 2) {
+      const bound = Math.floor(this.len / 2);
+      throw new Error(
+        `Requested exactly ${count} bytes.` +
+          `\nOn a stream with capacity ${this.capacity}, ` +
+          `exact reservations can be at most ${bound} bytes to avoid deadlock.` +
+          `\nTo handle the requested reservation, the stream capacity would need to be at least ${count * 2 - 1} bytes.` +
+          `\nSet \`flexible\` to \`true\` to request any available remaining capacity or increase the capacity of the underlying \`SharedArrayBuffer\`.`,
+      );
     }
 
     const read = this.atm_read.load();
     if (this.write >= read) {
-      if (this.len - this.write >= count) {
+      /* Write follows read, attempting to write before end of buffer */
+
+      const remaining = this.len - this.write;
+
+      /* If we are flexible, we'll take any amount of space at buffer end */
+      if (flexible && remaining > 0) {
+        const size = Math.min(count, remaining);
+        return new StreamWriterReservation(this, this.data.subarray(this.write, this.write + size));
+      }
+
+      /* Otherwise, if we have at least enough bytes, make a reservation */
+      if (remaining >= count) {
         return new StreamWriterReservation(
           this,
           this.data.subarray(this.write, this.write + count),
         );
       } else {
-        if (read - 1 >= count) {
+        /* We did not have space at the end of the buffer, so we'll try to wrap around */
+
+        const available = read - 1;
+
+        /* If we are flexible, we'll take any amount of space at buffer begin */
+        if (flexible && available > 0) {
+          const size = Math.min(count, available);
+          return new StreamWriterReservation(this, this.data.subarray(0, size), true);
+        }
+
+        /* Otherwise, if there's at least enough bytes at beginning, make a reservation */
+        if (available >= count) {
           return new StreamWriterReservation(this, this.data.subarray(0, count), true);
         } else {
           return null;
         }
       }
     } else {
-      if (read - this.write - 1 >= count) {
+      /* Read strictly follows write */
+
+      const available = read - this.write - 1;
+
+      /* If we are flexible, we'll take any amount of space between write and read */
+      if (flexible && available > 0) {
+        const size = Math.min(count, available);
+        return new StreamWriterReservation(this, this.data.subarray(this.write, this.write + size));
+      }
+
+      if (available >= count) {
         return new StreamWriterReservation(
           this,
           this.data.subarray(this.write, this.write + count),
@@ -415,6 +463,7 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
   private createWriter<T>(
     count: number,
     write: (value: T, res: StreamWriterReservation, offset: number) => void,
+    flexible?: boolean,
   ): WriterFn<Async, T> {
     const fn = this.async
       ? async (value: T) => {
@@ -426,21 +475,21 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
 
           let offset = 0;
           while (true) {
-            const chunkSize = Math.min(count - offset, this.stream.capacity);
-            let res = this.stream.reserve(chunkSize);
+            const requestSize = count - offset;
+            let res = this.stream.reserve(requestSize, flexible);
 
             /* Spin waiting for a reservation */
             if (res === null) {
               this.lock.reset();
               while (res === null) {
                 await this.lock.spin();
-                res = this.stream.reserve(chunkSize);
+                res = this.stream.reserve(requestSize, flexible);
               }
             }
 
             write(value, res, offset);
+            offset += res.data.length;
             res.commit();
-            offset += chunkSize;
             if (offset === count) {
               this.isAsyncWriting = false;
               return;
@@ -450,21 +499,21 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
       : (value: T) => {
           let offset = 0;
           while (true) {
-            const chunkSize = Math.min(count - offset, this.stream.capacity);
-            let res = this.stream.reserve(chunkSize);
+            const requestSize = count - offset;
+            let res = this.stream.reserve(requestSize, flexible);
 
             /* Spin waiting for a reservation */
             if (res === null) {
               this.lock.reset();
               while (res === null) {
                 this.lock.spin();
-                res = this.stream.reserve(chunkSize);
+                res = this.stream.reserve(requestSize, flexible);
               }
             }
 
             write(value, res, offset);
+            offset += res.data.length;
             res.commit();
-            offset += chunkSize;
             if (offset === count) return;
           }
         };
@@ -479,11 +528,11 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
 
     const fn = this.async
       ? async (value: Uint8Array) => {
-          const writer = this.createWriter(value.length, writeChunk);
+          const writer = this.createWriter(value.length, writeChunk, true);
           await writer(value);
         }
       : (value: Uint8Array) => {
-          const writer = this.createWriter(value.length, writeChunk);
+          const writer = this.createWriter(value.length, writeChunk, true);
           writer(value);
         };
     return fn as WriterFn<Async, Uint8Array>;

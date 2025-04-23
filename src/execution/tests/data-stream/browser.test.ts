@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DataStreamReader, DataStreamWriter, ReaderFn, Stream, WriterFn } from "../../stream";
-import {
-  FinishedReadingMessage,
-  HostToWorkerMessage,
-  WorkerErrorMessage,
-  WorkerToHostMessage,
-} from "./worker";
+import { DataStreamWriter, Stream } from "../../stream";
+import { FinishedReadingMessage, HostToWorkerMessage, WorkerToHostMessage } from "./worker";
 
 import StreamWorker from "./worker?worker";
 
@@ -37,20 +32,16 @@ function testSingle<Async extends boolean, T>(
         method,
       };
 
-      writer.addEventListener("message", (event: MessageEvent<WorkerToHostMessage>) => {
-        if (event.data.type === "error") throw event.data.reason;
-      });
-
-      writer.postMessage(writerMessage);
-
       const response = await new Promise<FinishedReadingMessage<unknown>>((resolve, reject) => {
         const handleMessage = (event: MessageEvent<WorkerToHostMessage>) => {
-          reader.removeEventListener("message", handleMessage);
-          if (event.data.type === "error") reject(event.data.reason);
-          else resolve(event.data);
+          if (event.data.type === "finished") resolve(event.data);
+          else reject(event.data.reason);
         };
+
         reader.addEventListener("message", handleMessage);
+        writer.addEventListener("message", handleMessage);
         reader.postMessage(readerMessage);
+        writer.postMessage(writerMessage);
       });
 
       expect(response.values).toEqual(values);
@@ -71,12 +62,13 @@ function test<T>(
   it(`${name ?? method} (sync)`, testSingle(method, false, values, capacity));
 }
 
-function randomBytes(n: number, max: number = 255) {
+function randomBytes(n: number) {
   const arr = new Uint8Array(n);
   crypto.getRandomValues(arr);
-  return arr.map((v) => v % max);
+  return arr;
 }
 
+// prettier-ignore
 function fullSuite({
   numerics,
   bytes,
@@ -88,23 +80,23 @@ function fullSuite({
   strings: readonly string[];
   capacity?: number;
 }) {
-  test("uint8", numerics, capacity);
-  test("uint16", numerics, capacity);
-  test("uint32", numerics, capacity);
-  test("uint64", numerics, capacity);
-  test("int8", numerics, capacity);
-  test("int16", numerics, capacity);
-  test("int32", numerics, capacity);
-  test("int64", numerics, capacity);
-  test("float32", numerics, capacity);
-  test("float64", numerics, capacity);
+  test("uint8",   numerics.map(n => n % 2 ** 8),          capacity);
+  test("uint16",  numerics.map(n => n % 2 ** 16),         capacity);
+  test("uint32",  numerics.map(n => n % 2 ** 32),         capacity);
+  test("uint64",  numerics,                               capacity);
+  test("int8",    numerics.map(n => n % 2 ** (8 - 1)),    capacity);
+  test("int16",   numerics.map(n => n % 2 ** (16 - 1)),   capacity);
+  test("int32",   numerics.map(n => n % 2 ** (32 - 1)),   capacity);
+  test("int64",   numerics,                               capacity);
+  test("float32", numerics.map(n => n % 255),             capacity);
+  test("float64", numerics.map(n => n % 255),             capacity);
 
-  test("bytesRaw", bytes, capacity);
-  test("bytes", bytes, capacity);
-  test("string", strings, capacity);
+  test("bytesRaw",  bytes,    capacity);
+  test("bytes",     bytes,    capacity);
+  test("string",    strings,  capacity);
 }
 
-describe("small items with plenty of capacity", () => {
+describe("small number of items with plenty of capacity", () => {
   fullSuite({
     numerics: [103, 106, 14],
     bytes: [randomBytes(5), randomBytes(1)],
@@ -113,14 +105,11 @@ describe("small items with plenty of capacity", () => {
   });
 });
 
-describe("many items, tiny capacity", () => {
-  // fullSuite({
-  //   numerics: [103, 106, 14],
-  //   bytes: [randomBytes(5), randomBytes(1)],
-  //   strings: ["Hey there! How is tit going out there....", "This is a test!", "Will it work????"],
-  //   capacity: 8,
-  // });
-
-  // test("int64", [103, 106, 100, 100, 100, 100, 100, 100], 14);
-  test("string", ["01234567", "hello my name is dun dun"], 14);
+describe("many items, minimum capacity", () => {
+  fullSuite({
+    numerics: Array.from(randomBytes(1000)),
+    bytes: [randomBytes(5), randomBytes(1)],
+    strings: ["Hey there! How is tit going out there....", "This is a test!", "Will it work????"],
+    capacity: 15,
+  });
 });
