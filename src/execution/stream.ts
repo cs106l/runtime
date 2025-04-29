@@ -178,7 +178,9 @@ export class StreamWriter extends Stream {
         `Requested exactly ${count} bytes.` +
           `\nOn a stream with capacity ${this.capacity}, ` +
           `exact reservations can be at most ${bound} bytes to avoid deadlock.` +
-          `\nTo handle the requested reservation, the stream capacity would need to be at least ${count * 2 - 1} bytes.` +
+          `\nTo handle the requested reservation, the stream capacity would need to be at least ${
+            count * 2 - 1
+          } bytes.` +
           `\nSet \`flexible\` to \`true\` to request any available remaining capacity or increase the capacity of the underlying \`SharedArrayBuffer\`.`,
       );
     }
@@ -422,6 +424,8 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
   private encoder = new TextEncoder();
   private isAsyncWriting = false;
 
+  bool: WriterFn<Async, boolean>;
+
   uint8: WriterFn<Async, number>;
   uint16: WriterFn<Async, number>;
   uint32: WriterFn<Async, number>;
@@ -443,6 +447,7 @@ export class DataStreamWriter<Async extends boolean = false> extends DataStream<
     super(options);
     this.stream = new StreamWriter(options.buffer);
 
+    this.bool = this.createWriter(1, (v, r) => r.view.setUint8(0, v ? 1 : 0));
     this.uint8 = this.createWriter(1, (v, r) => r.view.setUint8(0, v));
     this.uint16 = this.createWriter(2, (v, r) => r.view.setUint16(0, v));
     this.uint32 = this.createWriter(4, (v, r) => r.view.setUint32(0, v));
@@ -628,6 +633,8 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
   private decoder = new TextDecoder();
   private isAsyncReading = false;
 
+  bool: ReaderFn<Async, boolean>;
+
   uint8: ReaderFn<Async, number>;
   uint16: ReaderFn<Async, number>;
   uint32: ReaderFn<Async, number>;
@@ -672,6 +679,8 @@ export class DataStreamReader<Async extends boolean = false> extends DataStream<
   constructor(options: DataStreamOptions<Async>) {
     super(options);
     this.stream = new StreamReader(options.buffer);
+
+    this.bool = this.createReader(1, (v) => v.getUint8(0) > 0);
 
     this.uint8 = this.createReader(1, (v) => v.getUint8(0));
     this.uint16 = this.createReader(2, (v) => v.getUint16(0));

@@ -123,13 +123,17 @@ function fullSuite({
   numerics,
   bytes,
   strings,
+  bools,
   capacity,
 }: {
   numerics: readonly number[];
   bytes: readonly Uint8Array[];
   strings: readonly string[];
+  bools: readonly boolean[];
   capacity?: number;
 }) {
+  test("bool",      bools,                                  capacity);
+
   test("uint8",     numerics.map(n => n % 2 ** 8),          capacity);
   test("uint16",    numerics.map(n => n % 2 ** 16),         capacity);
   test("uint32",    numerics.map(n => n % 2 ** 32),         capacity);
@@ -148,6 +152,7 @@ function fullSuite({
 
 describe("small number of items with plenty of capacity", () => {
   fullSuite({
+    bools: [true, false, false, true, true],
     numerics: [103, 106, 14],
     bytes: [randomBytes(5), randomBytes(1)],
     strings: ["Hey there! How is tit going out there....", "This is a test!", "Will it work????"],
@@ -163,6 +168,7 @@ describe("empty bytes and strings", () => {
 
 describe("many items, minimum capacity", () => {
   fullSuite({
+    bools: Array.from(randomBytes(100)).map((v) => v % 2 === 0),
     numerics: Array.from(randomBytes(100)),
     bytes: Array.from({ length: 20 }).map((_, i) => randomBytes(i)),
     strings: Array.from({ length: 20 }, () => randomString(0, 20)),
@@ -171,8 +177,12 @@ describe("many items, minimum capacity", () => {
 });
 
 describe("stress test many byte arrays of random sizes", () => {
-  test("bytes", Array.from({ length: 1000 }, () => randomBytes(0, 1024)), 2048);
-})
+  test(
+    "bytes",
+    Array.from({ length: 1000 }, () => randomBytes(0, 1024)),
+    2048,
+  );
+});
 
 describe("test throughput", () => {
   for (const asyncWriter of [true, false]) {
