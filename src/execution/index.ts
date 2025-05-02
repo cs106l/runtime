@@ -141,6 +141,7 @@ export type RunConfig = {
   output?: WriteFn | OutputConfig;
   packages?: PackageWorkspace | PackageRef[];
   files?: Filesystem;
+  env?: Record<string, string>;
   entrypoint?: string;
   signal?: AbortSignal;
 };
@@ -211,7 +212,7 @@ export async function run(
 
     const host = new WASIWorkerHost(toBinaryURL(hostConfig.fs, hostConfig.binary), {
       args: hostConfig.args,
-      env: hostConfig.env,
+      env: { ...hostConfig.env, ...config.env },
       fs: hostConfig.fs,
       stdout: context.write,
       stderr: context.write,
