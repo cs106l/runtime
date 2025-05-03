@@ -45,6 +45,7 @@ def __get_world_file() -> str:
 
 def __get_world_file() -> str:
     def try_find(path: Path) -> Optional[str]:
+        if path is None: return None
         return path.as_posix() if path.is_file() else None
 
     def try_find_any(dir: Path) -> Optional[str]:
