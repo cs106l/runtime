@@ -15,6 +15,7 @@ Date of Creation: 10/1/2019
 
 from typing import Callable, Optional
 
+import os
 import sys
 from pathlib import Path
 
@@ -58,8 +59,14 @@ def __get_world_file() -> str:
     builtin_worlds_dir = Path(__file__).absolute().parent / "worlds"
     filename = f"{main_file.stem}.w"
 
+    # Setting KAREL_WORLD environment variable
+    # allows configuring default world
+    env_world_path = os.environ.get("KAREL_WORLD")
+    env_world_path = Path(env_world_path) if env_world_path else None
+
     return (
-        try_find(worlds_dir / filename)
+        try_find(env_world_path)
+        or try_find(worlds_dir / filename)
         or try_find(main_dir / filename)
         or try_find(builtin_worlds_dir / filename)
         or try_find_any(worlds_dir)
