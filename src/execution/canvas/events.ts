@@ -1,19 +1,12 @@
-export enum GradientType {
-  Linear = 0,
-  Conic = 1,
-  Radial = 2,
-}
+import { DataStreamReader } from "../stream";
 
 /**
- * Describes a canvas gradient object.
+ * Identifies a single canvas that a program can write to.
  *
- * `gradient` encoding:
- *  `[type: uint8] [stops: uint8] ([offset: float32] [color: string])*`
+ * This identifier must fit within an unsigned byte, so a program
+ * can maintain up to 255 concurrent canvases.
  */
-export type Gradient = {
-  type: GradientType;
-  stops: { offset: number; color: string }[];
-};
+export type CanvasId = number;
 
 export enum CanvasEventType {
   /* Canvas control */
@@ -520,8 +513,12 @@ export enum CanvasEventType {
    *
    * Resetting the canvas does not clear any previously created images.
    *
-   * One of:
-   *  - PNG:    `[id: uint16] [0: uint8] [png: bytes]`
+   * `[imageId: uint16] [mime: string] [data: bytes]`
+   *
+   * - `imageId` is a unique identifier that can be passed to `DrawImage`.
+   * - `mime` is one of the IANA image MIME types (https://www.iana.org/assignments/media-types/media-types.xhtml#image),
+   *    for example, "png" or "jpeg"
+   * - `data` is the raw binary of the image
    */
   CreateImage = 57,
 
@@ -536,4 +533,390 @@ export enum CanvasEventType {
    *  - `[2: uint8] [id: uint16] [sx: int16] [sy: int16] [sWidth: int16] [sHeight: int16] [dx: int16] [dy: int16] [dWidth: int16] [dHeight: int16]`
    */
   DrawImage = 58,
+
+  /**
+   * Closes the event stream between the running program and the renderer thread.
+   * After this message is received, no more messages will be sent and the connection may be closed.
+   */
+  ConnectionClosed = 59,
+}
+
+export enum GradientType {
+  Linear = 0,
+  Conic = 1,
+  Radial = 2,
+}
+
+/**
+ * Describes a canvas gradient object.
+ *
+ * `gradient` encoding:
+ *  `[type: uint8] [stops: uint8] ([offset: float32] [color: string])*`
+ */
+export type Gradient = {
+  type: GradientType;
+  stops: { offset: number; color: string }[];
+};
+
+const textRendering = [
+  "auto",
+  "optimizeSpeed",
+  "optimizeLegibility",
+  "geometricPrecision",
+] as const;
+
+const lineCap = ["butt", "round", "square"] as const;
+
+const lineJoin = ["miter", "bevel", "round"] as const;
+
+const textAlign = ["left", "right", "center", "start", "end"] as const;
+
+const textBaseline = ["alphabetic", "hanging", "top", "middle", "bottom", "ideographic"] as const;
+
+const direction = ["inherit", "ltr", "rtl"] as const;
+
+const fontKerning = ["auto", "normal", "none"] as const;
+
+const fontStretch = [
+  "normal",
+  "ultra-condensed",
+  "extra-condensed",
+  "condensed",
+  "semi-condensed",
+  "semi-expanded",
+  "expanded",
+  "extra-expanded",
+  "ultra-expanded",
+] as const;
+
+const fontVariantCaps = [
+  "normal",
+  "small-caps",
+  "all-small-caps",
+  "petite-caps",
+  "all-petite-caps",
+  "unicase",
+  "titling-caps",
+] as const;
+
+const fillRule = ["nonzero", "evenodd"] as const;
+
+const globalCompositeOperation = [
+  "source-over",
+  "source-in",
+  "source-out",
+  "source-atop",
+  "destination-over",
+  "destination-in",
+  "destination-out",
+  "destination-atop",
+  "lighter",
+  "copy",
+  "xor",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+] as const;
+
+export type CanvasEvent = Awaited<ReturnType<typeof readCanvasEventAsync>>;
+
+export async function readCanvasEventAsync(stream: DataStreamReader<true>) {
+  const type: CanvasEventType = await stream.uint8();
+  const id: CanvasId = await stream.uint8();
+
+  switch (type) {
+    case CanvasEventType.Create:
+      return [type, id] as const;
+
+    case CanvasEventType.Remove:
+      return [type, id] as const;
+
+    case CanvasEventType.Width:
+      return [type, id, await stream.int16()] as const;
+
+    case CanvasEventType.Height:
+      return [type, id, await stream.int16()] as const;
+
+    case CanvasEventType.ClearRect:
+    case CanvasEventType.FillRect:
+    case CanvasEventType.StrokeRect:
+    case CanvasEventType.Rect:
+      return [
+        type,
+        id,
+        await stream.int16(),
+        await stream.int16(),
+        await stream.int16(),
+        await stream.int16(),
+      ] as const;
+
+    case CanvasEventType.FillText:
+    case CanvasEventType.StrokeText:
+      const hasMaxWidth = (await stream.uint8()) > 0;
+      return [
+        type,
+        id,
+        await stream.string(),
+        await stream.int16(),
+        await stream.int16(),
+        hasMaxWidth ? await stream.int16() : undefined,
+      ] as const;
+
+    case CanvasEventType.TextRendering:
+      return [type, id, textRendering[await stream.uint8()]] as const;
+
+    case CanvasEventType.LineWidth:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.LineCap:
+      return [type, id, lineCap[await stream.uint8()]] as const;
+
+    case CanvasEventType.LineJoin:
+      return [type, id, lineJoin[await stream.uint8()]] as const;
+
+    case CanvasEventType.MiterLimit:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.SetLineDash:
+      return [type, id, Array.from(await stream.bytes())] as const;
+
+    case CanvasEventType.LineDashOffset:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.Font:
+      return [type, id, await stream.string()] as const;
+
+    case CanvasEventType.TextAlign:
+      return [type, id, textAlign[await stream.uint8()]] as const;
+
+    case CanvasEventType.TextBaseline:
+      return [type, id, textBaseline[await stream.uint8()]] as const;
+
+    case CanvasEventType.Direction:
+      return [type, id, direction[await stream.uint8()]] as const;
+
+    case CanvasEventType.LetterSpacing:
+      return [type, id, await stream.string()] as const;
+
+    case CanvasEventType.FontKerning:
+      return [type, id, fontKerning[await stream.uint8()]] as const;
+
+    case CanvasEventType.FontStretch:
+      return [type, id, fontStretch[await stream.uint8()]] as const;
+
+    case CanvasEventType.FontVariantCaps:
+      return [type, id, fontVariantCaps[await stream.uint8()]] as const;
+
+    case CanvasEventType.WordSpacing:
+      return [type, id, await stream.string()];
+
+    case CanvasEventType.FillStyle:
+    case CanvasEventType.StrokeStyle:
+      const isGradient = (await stream.uint8()) > 0;
+      if (!isGradient) return [type, id, await stream.string()] as const;
+      const gradType: GradientType = await stream.uint8();
+      const stops: Gradient["stops"] = [];
+      const nStops = await stream.uint8();
+      for (let i = 0; i < nStops; i++) {
+        const offset = await stream.float32();
+        const color = await stream.string();
+        stops.push({ offset, color });
+      }
+      const gradient: Gradient = { type: gradType, stops };
+      return [type, id, gradient] as const;
+
+    case CanvasEventType.ShadowBlur:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.ShadowColor:
+      return [type, id, await stream.string()] as const;
+
+    case CanvasEventType.ShadowOffsetX:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.ShadowOffsetY:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.BeginPath:
+    case CanvasEventType.ClosePath:
+      return [type, id] as const;
+
+    case CanvasEventType.MoveTo:
+    case CanvasEventType.LineTo:
+      return [type, id, await stream.int16(), await stream.int16()] as const;
+
+    case CanvasEventType.BezierCurveTo:
+      return [
+        type,
+        id,
+        await stream.int16(),
+        await stream.int16(),
+        await stream.int16(),
+        await stream.int16(),
+        await stream.int16(),
+        await stream.int16(),
+      ] as const;
+
+    case CanvasEventType.QuadraticCurveTo:
+      return [
+        type,
+        id,
+        await stream.int16(), // cpx
+        await stream.int16(), // cpy
+        await stream.int16(), // x
+        await stream.int16(), // y
+      ];
+
+    case CanvasEventType.Arc:
+      return [
+        type,
+        id,
+        await stream.int16(), // x
+        await stream.int16(), // y
+        await stream.int16(), // radius
+        await stream.float32(), // startAngle
+        await stream.float32(), // endAngle
+        await stream.bool(), // counterclockwise
+      ] as const;
+
+    case CanvasEventType.ArcTo:
+      return [
+        type,
+        id,
+        await stream.int16(), // x1
+        await stream.int16(), // y1
+        await stream.int16(), // x2
+        await stream.int16(), // y2
+        await stream.int16(), // radius
+      ] as const;
+
+    case CanvasEventType.Ellipse:
+      return [
+        type,
+        id,
+        await stream.int16(), // x
+        await stream.int16(), // y
+        await stream.int16(), // radiusX
+        await stream.int16(), // radiusY
+        await stream.float32(), // rotation
+        await stream.float32(), // startAngle
+        await stream.float32(), // endAngle
+        await stream.bool(), // counterclockwise
+      ] as const;
+
+    case CanvasEventType.RoundRect: {
+      const x = await stream.int16();
+      const y = await stream.int16();
+      const width = await stream.int16();
+      const height = await stream.int16();
+      const nRadii = await stream.uint8();
+      const radii: number[] = [];
+      for (let i = 0; i < nRadii; i++) {
+        radii.push(await stream.uint16());
+      }
+      return [type, id, x, y, width, height, radii] as const;
+    }
+
+    case CanvasEventType.Fill:
+    case CanvasEventType.Clip:
+      return [type, id, fillRule[await stream.uint8()]] as const;
+
+    case CanvasEventType.Stroke:
+      return [type, id] as const;
+
+    case CanvasEventType.Rotate:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.Scale:
+    case CanvasEventType.Translate:
+      return [type, id, await stream.float32(), await stream.float32()] as const;
+
+    case CanvasEventType.Transform:
+    case CanvasEventType.SetTransform:
+      return [
+        type,
+        id,
+        await stream.float32(),
+        await stream.float32(),
+        await stream.float32(),
+        await stream.float32(),
+        await stream.float32(),
+        await stream.float32(),
+      ] as const;
+
+    case CanvasEventType.ResetTransform:
+      return [type, id] as const;
+
+    case CanvasEventType.GlobalAlpha:
+      return [type, id, await stream.float32()] as const;
+
+    case CanvasEventType.GlobalCompositeOperation:
+      return [type, id, globalCompositeOperation[await stream.uint8()]] as const;
+
+    case CanvasEventType.Save:
+    case CanvasEventType.Restore:
+    case CanvasEventType.Reset:
+      return [type, id] as const;
+
+    case CanvasEventType.Filter:
+      return [type, id, await stream.string()] as const;
+
+    case CanvasEventType.CreateImage: {
+      const imageId = await stream.uint16();
+      const imageType = await stream.string();
+      const imageBytes = await stream.bytes();
+      return [type, id, imageId, imageType, imageBytes] as const;
+    }
+
+    case CanvasEventType.DrawImage: {
+      const overload = await stream.uint8();
+      const imageId = await stream.uint16();
+      switch (overload) {
+        case 0:
+          return [type, id, imageId, await stream.int16(), await stream.int16()] as const;
+        case 1:
+          return [
+            type,
+            id,
+            imageId,
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+          ] as const;
+        case 2:
+          return [
+            type,
+            id,
+            imageId,
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+            await stream.int16(),
+          ] as const;
+      }
+    }
+
+    case CanvasEventType.ConnectionClosed:
+      return [type, id] as const;
+
+    default:
+      throw new Error(`Unknown canvas event type: ${type}`);
+  }
 }
