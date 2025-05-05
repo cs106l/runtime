@@ -535,10 +535,27 @@ export enum CanvasEventType {
   DrawImage = 58,
 
   /**
+   * Sets [imageSmoothingEnabled](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvasRenderingContext2D)
+   * 
+   * `[imageSmoothingEnabled: bool]`
+   */
+  ImageSmoothingEnabled = 59,
+
+  /**
+   * Sets [imageSmoothingQuality](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingQuality)
+   * 
+   * One of:
+   *  - low:    `[0: uint8]`
+   *  - medium: `[1: uint8]`
+   *  - high:   `[2: uint8]`
+   */
+  ImageSmoothingQuality = 60,
+
+  /**
    * Closes the event stream between the running program and the renderer thread.
    * After this message is received, no more messages will be sent and the connection may be closed.
    */
-  ConnectionClosed = 59,
+  ConnectionClosed = 61,
 }
 
 export enum GradientType {
@@ -628,6 +645,12 @@ const globalCompositeOperation = [
   "saturation",
   "color",
   "luminosity",
+] as const;
+
+const imageSmoothingQuality = [
+  "low",
+  "medium",
+  "high",
 ] as const;
 
 export type CanvasEvent = Awaited<ReturnType<typeof readCanvasEventAsync>>;
@@ -879,6 +902,12 @@ export async function readCanvasEventAsync(stream: DataStreamReader<true>) {
       const imageBytes = await stream.bytes();
       return [type, id, imageId, imageType, imageBytes] as const;
     }
+
+    case CanvasEventType.ImageSmoothingEnabled:
+      return [type, id, await stream.bool()] as const;
+
+    case CanvasEventType.ImageSmoothingQuality:
+      return [type, id, imageSmoothingQuality[await stream.uint8()]] as const;
 
     case CanvasEventType.DrawImage: {
       const overload = await stream.uint8();
