@@ -17,6 +17,12 @@ export type BundledPackageMeta = PackageMeta & {
    * Unix timestamp of when this package was built
    */
   ts: number;
+
+  /**
+   * Whether or not to hide this package inside of the registry.
+   * Hidden packages may still be resolved.
+   */
+  hidden?: boolean;
 };
 
 export class BaseRegistry extends PackageRegistry {
@@ -36,6 +42,7 @@ export class BaseRegistry extends PackageRegistry {
     const seen = new Set<string>();
     for (const meta of await this.fetchRegistry(options?.signal)) {
       if (seen.has(meta.name)) continue;
+      if (meta.hidden) continue;
       const label = meta.label ?? meta.name;
       if (!query || label.toLocaleLowerCase().includes(query.toLocaleLowerCase())) {
         seen.add(meta.name);

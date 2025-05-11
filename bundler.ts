@@ -47,6 +47,11 @@ const ManifestSchema = PackageMetaSchema.omit({
    * never be included.
    */
   files: z.string().array().optional(),
+
+  /**
+   * Whether or not to hide this package on the list of public packages
+   */
+  hidden: z.boolean().optional()
 });
 
 function findManifestPaths(dir: string = PackagesDir): string[] {
@@ -198,6 +203,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
   const meta: BundledPackageMeta = {
     ts: Date.now(),
     sha: execSync("git rev-parse HEAD").toString().trim(),
+    hidden: manifest.hidden,
     name: manifest.name,
     label: manifest.label,
     description: manifest.description,
