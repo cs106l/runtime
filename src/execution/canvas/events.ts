@@ -475,23 +475,31 @@ export enum CanvasEventType {
   GlobalCompositeOperation = 52,
 
   /* Canvas State */
+  /**
+   * These methods are intentionally disabled since they require keeping track of the
+   * previous external state of the canvas, which is inconvenient for client implementations to do
+   * correctly.
+   *
+   * They may be implemented at some point, but for now, the best way is to simply call `clearRect`
+   * to clear the canvas before drawing.
+   */
 
   /**
    * [save](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/save)
    */
-  Save = 53,
+  // Save = 53,
 
   /**
    * [restore](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/restore)
    */
-  Restore = 54,
+  // Restore = 54,
 
   /**
    * [reset](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/reset)
    *
    * This operation is newly available and may not be supported in every browser.
    */
-  Reset = 55,
+  // Reset = 55,
 
   /* Filters */
 
@@ -879,10 +887,10 @@ export async function readCanvasEventAsync(stream: AsyncChunkReader) {
       case CanvasEventType.GlobalCompositeOperation:
         return [type, id, globalCompositeOperation[chunk.uint8()]] as const;
 
-      case CanvasEventType.Save:
-      case CanvasEventType.Restore:
-      case CanvasEventType.Reset:
-        return [type, id] as const;
+      // case CanvasEventType.Save:
+      // case CanvasEventType.Restore:
+      // case CanvasEventType.Reset:
+      //   return [type, id] as const;
 
       case CanvasEventType.Filter:
         return [type, id, chunk.string()] as const;
