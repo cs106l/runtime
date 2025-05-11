@@ -1,4 +1,4 @@
-import { AsyncChunkReader } from "../stream";
+import { AsyncChunkReader, ReadableChunk } from "../stream";
 
 /**
  * Identifies a single canvas that a program can write to.
@@ -128,7 +128,7 @@ export enum CanvasEventType {
   /**
    * [setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash)
    *
-   * `[dashes: bytes]`
+   * `[nDashes: uint8] [dashes: uint8]*`
    *
    * Notes:
    *  The `dashes` byte array is treated as an array of integers, so each dash can range from 0-255, inclusive.
@@ -155,11 +155,11 @@ export enum CanvasEventType {
    * Sets [textAlign](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/textAlign)
    *
    * One of:
-   *  - left:     `[0: uint8]`
-   *  - right:    `[1: uint8]`
-   *  - center:   `[2: uint8]`
-   *  - start:    `[3: uint8]`
-   *  - end:      `[4: uint8]`
+   *  - start:    `[0: uint8]`
+   *  - end:      `[1: uint8]`
+   *  - left:     `[2: uint8]`
+   *  - right:    `[3: uint8]`
+   *  - center:   `[4: uint8]`
    */
   TextAlign = 17,
 
@@ -576,12 +576,23 @@ export enum GradientType {
  * Describes a canvas gradient object.
  *
  * `gradient` encoding:
- *  `[type: uint8] [stops: uint8] ([offset: float32] [color: string])*`
+ *  `[stops: uint8] ([offset: float32] [color: string])*`
+ *
+ * Followed by one of the following, depending on the gradient type:
+ *  - Linear:   `[type: 0] [x0: int16] [y0: int16] [x1: int16] [y1: int16]`
+ *  - Conic:    `[type: 1] [x: int16] [y: int16] [angle: float32]`
+ *  - Radial:   `[type: 2] [x0: int16] [y0: int16] [r0: int16] [x1: int16] [y1: int16] [r1: int16]`
  */
 export type Gradient = {
-  type: GradientType;
   stops: { offset: number; color: string }[];
-};
+} & (
+  | { type: GradientType.Linear; args: [x0: number, y0: number, x1: number, y1: number] }
+  | { type: GradientType.Conic; args: [x: number, y: number, angle: number] }
+  | {
+      type: GradientType.Radial;
+      args: [x0: number, y0: number, r0: number, x1: number, y1: number, r1: number];
+    }
+);
 
 const textRendering = [
   "auto",
@@ -594,7 +605,7 @@ const lineCap = ["butt", "round", "square"] as const;
 
 const lineJoin = ["miter", "bevel", "round"] as const;
 
-const textAlign = ["left", "right", "center", "start", "end"] as const;
+const textAlign = ["start", "end", "left", "right", "center"] as const;
 
 const textBaseline = ["alphabetic", "hanging", "top", "middle", "bottom", "ideographic"] as const;
 
@@ -657,297 +668,329 @@ const globalCompositeOperation = [
 
 const imageSmoothingQuality = ["low", "medium", "high"] as const;
 
-export type CanvasEvent = Awaited<ReturnType<typeof readCanvasEventAsync>>;
+export type CanvasEvent = Awaited<ReturnType<typeof unpackCanvasEvent>>;
 
-export async function readCanvasEventAsync(stream: AsyncChunkReader) {
-  const chunk = await stream.read();
+export function unpackCanvasEvent(chunk: ReadableChunk) {
   const type: CanvasEventType = chunk.uint8();
   const id: CanvasId = chunk.uint8();
 
-  try {
-    switch (type) {
-      case CanvasEventType.Create:
-        return [type, id] as const;
+  switch (type) {
+    case CanvasEventType.Create:
+      return [type, id] as const;
 
-      case CanvasEventType.Remove:
-        return [type, id] as const;
+    case CanvasEventType.Remove:
+      return [type, id] as const;
 
-      case CanvasEventType.Width:
-        return [type, id, chunk.int16()] as const;
+    case CanvasEventType.Width:
+      return [type, id, chunk.int16()] as const;
 
-      case CanvasEventType.Height:
-        return [type, id, chunk.int16()] as const;
+    case CanvasEventType.Height:
+      return [type, id, chunk.int16()] as const;
 
-      case CanvasEventType.ClearRect:
-      case CanvasEventType.FillRect:
-      case CanvasEventType.StrokeRect:
-      case CanvasEventType.Rect:
-        return [type, id, chunk.int16(), chunk.int16(), chunk.int16(), chunk.int16()] as const;
+    case CanvasEventType.ClearRect:
+    case CanvasEventType.FillRect:
+    case CanvasEventType.StrokeRect:
+    case CanvasEventType.Rect:
+      return [type, id, chunk.int16(), chunk.int16(), chunk.int16(), chunk.int16()] as const;
 
-      case CanvasEventType.FillText:
-      case CanvasEventType.StrokeText:
-        const hasMaxWidth = chunk.uint8() > 0;
-        return [
-          type,
-          id,
-          chunk.string(),
-          chunk.int16(),
-          chunk.int16(),
-          hasMaxWidth ? chunk.int16() : undefined,
-        ] as const;
+    case CanvasEventType.FillText:
+    case CanvasEventType.StrokeText:
+      const hasMaxWidth = chunk.uint8() > 0;
+      return [
+        type,
+        id,
+        chunk.string(),
+        chunk.int16(),
+        chunk.int16(),
+        hasMaxWidth ? chunk.int16() : undefined,
+      ] as const;
 
-      case CanvasEventType.TextRendering:
-        return [type, id, textRendering[chunk.uint8()]] as const;
+    case CanvasEventType.TextRendering:
+      return [type, id, textRendering[chunk.uint8()]] as const;
 
-      case CanvasEventType.LineWidth:
-        return [type, id, chunk.float32()] as const;
+    case CanvasEventType.LineWidth:
+      return [type, id, chunk.float32()] as const;
 
-      case CanvasEventType.LineCap:
-        return [type, id, lineCap[chunk.uint8()]] as const;
+    case CanvasEventType.LineCap:
+      return [type, id, lineCap[chunk.uint8()]] as const;
 
-      case CanvasEventType.LineJoin:
-        return [type, id, lineJoin[chunk.uint8()]] as const;
+    case CanvasEventType.LineJoin:
+      return [type, id, lineJoin[chunk.uint8()]] as const;
 
-      case CanvasEventType.MiterLimit:
-        return [type, id, chunk.float32()] as const;
+    case CanvasEventType.MiterLimit:
+      return [type, id, chunk.float32()] as const;
 
-      case CanvasEventType.SetLineDash:
-        return [type, id, Array.from(chunk.bytes())] as const;
+    case CanvasEventType.SetLineDash:
+      const nDashes = chunk.uint8();
+      const dashes: number[] = [];
+      for (let i = 0; i < nDashes; i++) {
+        dashes.push(chunk.uint8());
+      }
+      return [type, id, dashes] as const;
 
-      case CanvasEventType.LineDashOffset:
-        return [type, id, chunk.float32()] as const;
+    case CanvasEventType.LineDashOffset:
+      return [type, id, chunk.float32()] as const;
 
-      case CanvasEventType.Font:
-        return [type, id, chunk.string()] as const;
+    case CanvasEventType.Font:
+      return [type, id, chunk.string()] as const;
 
-      case CanvasEventType.TextAlign:
-        return [type, id, textAlign[chunk.uint8()]] as const;
+    case CanvasEventType.TextAlign:
+      return [type, id, textAlign[chunk.uint8()]] as const;
 
-      case CanvasEventType.TextBaseline:
-        return [type, id, textBaseline[chunk.uint8()]] as const;
+    case CanvasEventType.TextBaseline:
+      return [type, id, textBaseline[chunk.uint8()]] as const;
 
-      case CanvasEventType.Direction:
-        return [type, id, direction[chunk.uint8()]] as const;
+    case CanvasEventType.Direction:
+      return [type, id, direction[chunk.uint8()]] as const;
 
-      case CanvasEventType.LetterSpacing:
-        return [type, id, chunk.string()] as const;
+    case CanvasEventType.LetterSpacing:
+      return [type, id, chunk.string()] as const;
 
-      case CanvasEventType.FontKerning:
-        return [type, id, fontKerning[chunk.uint8()]] as const;
+    case CanvasEventType.FontKerning:
+      return [type, id, fontKerning[chunk.uint8()]] as const;
 
-      case CanvasEventType.FontStretch:
-        return [type, id, fontStretch[chunk.uint8()]] as const;
+    case CanvasEventType.FontStretch:
+      return [type, id, fontStretch[chunk.uint8()]] as const;
 
-      case CanvasEventType.FontVariantCaps:
-        return [type, id, fontVariantCaps[chunk.uint8()]] as const;
+    case CanvasEventType.FontVariantCaps:
+      return [type, id, fontVariantCaps[chunk.uint8()]] as const;
 
-      case CanvasEventType.WordSpacing:
-        return [type, id, chunk.string()];
+    case CanvasEventType.WordSpacing:
+      return [type, id, chunk.string()];
 
-      case CanvasEventType.FillStyle:
-      case CanvasEventType.StrokeStyle:
-        const isGradient = chunk.uint8() > 0;
-        if (!isGradient) return [type, id, chunk.string()] as const;
-        const gradType: GradientType = chunk.uint8();
-        const stops: Gradient["stops"] = [];
-        const nStops = chunk.uint8();
-        for (let i = 0; i < nStops; i++) {
-          const offset = chunk.float32();
-          const color = chunk.string();
-          stops.push({ offset, color });
-        }
-        const gradient: Gradient = { type: gradType, stops };
-        return [type, id, gradient] as const;
+    case CanvasEventType.FillStyle:
+    case CanvasEventType.StrokeStyle:
+      const isGradient = chunk.uint8() > 0;
+      if (!isGradient) return [type, id, chunk.string()] as const;
 
-      case CanvasEventType.ShadowBlur:
-        return [type, id, chunk.float32()] as const;
-
-      case CanvasEventType.ShadowColor:
-        return [type, id, chunk.string()] as const;
-
-      case CanvasEventType.ShadowOffsetX:
-        return [type, id, chunk.float32()] as const;
-
-      case CanvasEventType.ShadowOffsetY:
-        return [type, id, chunk.float32()] as const;
-
-      case CanvasEventType.BeginPath:
-      case CanvasEventType.ClosePath:
-        return [type, id] as const;
-
-      case CanvasEventType.MoveTo:
-      case CanvasEventType.LineTo:
-        return [type, id, chunk.int16(), chunk.int16()] as const;
-
-      case CanvasEventType.BezierCurveTo:
-        return [
-          type,
-          id,
-          chunk.int16(),
-          chunk.int16(),
-          chunk.int16(),
-          chunk.int16(),
-          chunk.int16(),
-          chunk.int16(),
-        ] as const;
-
-      case CanvasEventType.QuadraticCurveTo:
-        return [
-          type,
-          id,
-          chunk.int16(), // cpx
-          chunk.int16(), // cpy
-          chunk.int16(), // x
-          chunk.int16(), // y
-        ];
-
-      case CanvasEventType.Arc:
-        return [
-          type,
-          id,
-          chunk.int16(), // x
-          chunk.int16(), // y
-          chunk.int16(), // radius
-          chunk.float32(), // startAngle
-          chunk.float32(), // endAngle
-          chunk.bool(), // counterclockwise
-        ] as const;
-
-      case CanvasEventType.ArcTo:
-        return [
-          type,
-          id,
-          chunk.int16(), // x1
-          chunk.int16(), // y1
-          chunk.int16(), // x2
-          chunk.int16(), // y2
-          chunk.int16(), // radius
-        ] as const;
-
-      case CanvasEventType.Ellipse:
-        return [
-          type,
-          id,
-          chunk.int16(), // x
-          chunk.int16(), // y
-          chunk.int16(), // radiusX
-          chunk.int16(), // radiusY
-          chunk.float32(), // rotation
-          chunk.float32(), // startAngle
-          chunk.float32(), // endAngle
-          chunk.bool(), // counterclockwise
-        ] as const;
-
-      case CanvasEventType.RoundRect: {
-        const x = chunk.int16();
-        const y = chunk.int16();
-        const width = chunk.int16();
-        const height = chunk.int16();
-        const nRadii = chunk.uint8();
-        const radii: number[] = [];
-        for (let i = 0; i < nRadii; i++) {
-          radii.push(chunk.uint16());
-        }
-        return [type, id, x, y, width, height, radii] as const;
+      const stops: Gradient["stops"] = [];
+      const nStops = chunk.uint8();
+      for (let i = 0; i < nStops; i++) {
+        const offset = chunk.float32();
+        const color = chunk.string();
+        stops.push({ offset, color });
       }
 
-      case CanvasEventType.Fill:
-      case CanvasEventType.Clip:
-        return [type, id, fillRule[chunk.uint8()]] as const;
+      const gradType: GradientType = chunk.uint8();
+      let gradient: Gradient;
 
-      case CanvasEventType.Stroke:
-        return [type, id] as const;
-
-      case CanvasEventType.Rotate:
-        return [type, id, chunk.float32()] as const;
-
-      case CanvasEventType.Scale:
-      case CanvasEventType.Translate:
-        return [type, id, chunk.float32(), chunk.float32()] as const;
-
-      case CanvasEventType.Transform:
-      case CanvasEventType.SetTransform:
-        return [
-          type,
-          id,
-          chunk.float32(),
-          chunk.float32(),
-          chunk.float32(),
-          chunk.float32(),
-          chunk.float32(),
-          chunk.float32(),
-        ] as const;
-
-      case CanvasEventType.ResetTransform:
-        return [type, id] as const;
-
-      case CanvasEventType.GlobalAlpha:
-        return [type, id, chunk.float32()] as const;
-
-      case CanvasEventType.GlobalCompositeOperation:
-        return [type, id, globalCompositeOperation[chunk.uint8()]] as const;
-
-      // case CanvasEventType.Save:
-      // case CanvasEventType.Restore:
-      // case CanvasEventType.Reset:
-      //   return [type, id] as const;
-
-      case CanvasEventType.Filter:
-        return [type, id, chunk.string()] as const;
-
-      case CanvasEventType.CreateImage: {
-        const imageId = chunk.uint16();
-        const imageType = chunk.string();
-        const imageBytes = chunk.bytes();
-        return [type, id, imageId, imageType, imageBytes] as const;
+      if (gradType === GradientType.Linear) {
+        gradient = {
+          type: gradType,
+          args: [chunk.int16(), chunk.int16(), chunk.int16(), chunk.int16()],
+          stops,
+        };
+      } else if (gradType === GradientType.Conic) {
+        gradient = {
+          type: gradType,
+          args: [chunk.int16(), chunk.int16(), chunk.float32()],
+          stops,
+        };
+      } else if (gradType === GradientType.Radial) {
+        gradient = {
+          type: gradType,
+          args: [
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+          ],
+          stops,
+        };
+      } else {
+        throw new Error(`Unknown gradient type: ${gradType}`);
       }
 
-      case CanvasEventType.ImageSmoothingEnabled:
-        return [type, id, chunk.bool()] as const;
+      return [type, id, gradient] as const;
 
-      case CanvasEventType.ImageSmoothingQuality:
-        return [type, id, imageSmoothingQuality[chunk.uint8()]] as const;
+    case CanvasEventType.ShadowBlur:
+      return [type, id, chunk.float32()] as const;
 
-      case CanvasEventType.DrawImage: {
-        const overload = chunk.uint8();
-        const imageId = chunk.uint16();
-        switch (overload) {
-          case 0:
-            return [type, id, imageId, chunk.int16(), chunk.int16()] as const;
-          case 1:
-            return [
-              type,
-              id,
-              imageId,
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-            ] as const;
-          case 2:
-            return [
-              type,
-              id,
-              imageId,
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-              chunk.int16(),
-            ] as const;
-        }
+    case CanvasEventType.ShadowColor:
+      return [type, id, chunk.string()] as const;
+
+    case CanvasEventType.ShadowOffsetX:
+      return [type, id, chunk.float32()] as const;
+
+    case CanvasEventType.ShadowOffsetY:
+      return [type, id, chunk.float32()] as const;
+
+    case CanvasEventType.BeginPath:
+    case CanvasEventType.ClosePath:
+      return [type, id] as const;
+
+    case CanvasEventType.MoveTo:
+    case CanvasEventType.LineTo:
+      return [type, id, chunk.int16(), chunk.int16()] as const;
+
+    case CanvasEventType.BezierCurveTo:
+      return [
+        type,
+        id,
+        chunk.int16(),
+        chunk.int16(),
+        chunk.int16(),
+        chunk.int16(),
+        chunk.int16(),
+        chunk.int16(),
+      ] as const;
+
+    case CanvasEventType.QuadraticCurveTo:
+      return [
+        type,
+        id,
+        chunk.int16(), // cpx
+        chunk.int16(), // cpy
+        chunk.int16(), // x
+        chunk.int16(), // y
+      ];
+
+    case CanvasEventType.Arc:
+      return [
+        type,
+        id,
+        chunk.int16(), // x
+        chunk.int16(), // y
+        chunk.int16(), // radius
+        chunk.float32(), // startAngle
+        chunk.float32(), // endAngle
+        chunk.bool(), // counterclockwise
+      ] as const;
+
+    case CanvasEventType.ArcTo:
+      return [
+        type,
+        id,
+        chunk.int16(), // x1
+        chunk.int16(), // y1
+        chunk.int16(), // x2
+        chunk.int16(), // y2
+        chunk.int16(), // radius
+      ] as const;
+
+    case CanvasEventType.Ellipse:
+      return [
+        type,
+        id,
+        chunk.int16(), // x
+        chunk.int16(), // y
+        chunk.int16(), // radiusX
+        chunk.int16(), // radiusY
+        chunk.float32(), // rotation
+        chunk.float32(), // startAngle
+        chunk.float32(), // endAngle
+        chunk.bool(), // counterclockwise
+      ] as const;
+
+    case CanvasEventType.RoundRect: {
+      const x = chunk.int16();
+      const y = chunk.int16();
+      const width = chunk.int16();
+      const height = chunk.int16();
+      const nRadii = chunk.uint8();
+      const radii: number[] = [];
+      for (let i = 0; i < nRadii; i++) {
+        radii.push(chunk.uint16());
       }
-
-      case CanvasEventType.ConnectionClosed:
-        return [type, id] as const;
-
-      default:
-        throw new Error(`Unknown canvas event type: ${type}`);
+      return [type, id, x, y, width, height, radii] as const;
     }
-  } finally {
-    chunk.release();
+
+    case CanvasEventType.Fill:
+    case CanvasEventType.Clip:
+      return [type, id, fillRule[chunk.uint8()]] as const;
+
+    case CanvasEventType.Stroke:
+      return [type, id] as const;
+
+    case CanvasEventType.Rotate:
+      return [type, id, chunk.float32()] as const;
+
+    case CanvasEventType.Scale:
+    case CanvasEventType.Translate:
+      return [type, id, chunk.float32(), chunk.float32()] as const;
+
+    case CanvasEventType.Transform:
+    case CanvasEventType.SetTransform:
+      return [
+        type,
+        id,
+        chunk.float32(),
+        chunk.float32(),
+        chunk.float32(),
+        chunk.float32(),
+        chunk.float32(),
+        chunk.float32(),
+      ] as const;
+
+    case CanvasEventType.ResetTransform:
+      return [type, id] as const;
+
+    case CanvasEventType.GlobalAlpha:
+      return [type, id, chunk.float32()] as const;
+
+    case CanvasEventType.GlobalCompositeOperation:
+      return [type, id, globalCompositeOperation[chunk.uint8()]] as const;
+
+    // case CanvasEventType.Save:
+    // case CanvasEventType.Restore:
+    // case CanvasEventType.Reset:
+    //   return [type, id] as const;
+
+    case CanvasEventType.Filter:
+      return [type, id, chunk.string()] as const;
+
+    case CanvasEventType.CreateImage: {
+      const imageId = chunk.uint16();
+      const imageType = chunk.string();
+      const imageBytes = chunk.bytes();
+      return [type, id, imageId, imageType, imageBytes] as const;
+    }
+
+    case CanvasEventType.ImageSmoothingEnabled:
+      return [type, id, chunk.bool()] as const;
+
+    case CanvasEventType.ImageSmoothingQuality:
+      return [type, id, imageSmoothingQuality[chunk.uint8()]] as const;
+
+    case CanvasEventType.DrawImage: {
+      const overload = chunk.uint8();
+      const imageId = chunk.uint16();
+      switch (overload) {
+        case 0:
+          return [type, id, imageId, chunk.int16(), chunk.int16()] as const;
+        case 1:
+          return [
+            type,
+            id,
+            imageId,
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+          ] as const;
+        case 2:
+          return [
+            type,
+            id,
+            imageId,
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+            chunk.int16(),
+          ] as const;
+      }
+    }
+
+    case CanvasEventType.ConnectionClosed:
+      return [type, id] as const;
+
+    default:
+      throw new Error(`Unknown canvas event type: ${type}`);
   }
 }
