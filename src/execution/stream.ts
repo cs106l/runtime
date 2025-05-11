@@ -362,212 +362,21 @@ export class LockStrategy {
   public spin(): number {
     return 0;
   }
+
+  public static get busy() {
+    return new LockStrategy();
+  }
 }
 
-class Lock {
+class AsyncLock {
   constructor(protected strategy: LockStrategy) {}
+
   public reset(): void {
     this.strategy.reset();
   }
-}
 
-class SyncLock extends Lock {
-  private atomic = new Atomic();
-
-  public spin(): void {
-    const timeout = this.strategy.spin();
-    if (timeout > 0) {
-      this.atomic.sleep(0, timeout);
-    }
-  }
-}
-
-class AsyncLock extends Lock {
   public spin(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, this.strategy.spin()));
-  }
-}
-
-export type DataStreamOptions<Async extends boolean = false> = {
-  async?: Async;
-  buffer: SharedArrayBuffer;
-  strategy?: LockStrategy;
-};
-
-export type WriterFn<Async extends boolean, T> = Async extends true
-  ? (value: T) => Promise<void>
-  : (value: T) => void;
-
-export type ReaderFn<Async extends boolean, T, Args extends unknown[] = []> = Async extends true
-  ? (...args: Args) => Promise<T>
-  : (...args: Args) => T;
-
-class DataStream<Async extends boolean> {
-  public readonly async: Async;
-  protected lock: Async extends true ? AsyncLock : SyncLock;
-
-  constructor(options: DataStreamOptions<Async>) {
-    this.async = (options.async ?? false) as Async;
-
-    // TODO: Change lock strategy if async versus sync
-    //       Browser thread might prefer a backoff strategy over busy waiting
-    //       Something to think about
-    const stgy = options.strategy ?? new LockStrategy();
-    this.lock = (
-      options.async ? new AsyncLock(stgy) : new SyncLock(stgy)
-    ) as DataStream<Async>["lock"];
-  }
-}
-
-export class DataStreamWriter<Async extends boolean = false> extends DataStream<Async> {
-  private stream: StreamWriter;
-  private encoder = new TextEncoder();
-  private isAsyncWriting = false;
-
-  bool: WriterFn<Async, boolean>;
-
-  uint8: WriterFn<Async, number>;
-  uint16: WriterFn<Async, number>;
-  uint32: WriterFn<Async, number>;
-  uint64: WriterFn<Async, number>;
-
-  int8: WriterFn<Async, number>;
-  int16: WriterFn<Async, number>;
-  int32: WriterFn<Async, number>;
-  int64: WriterFn<Async, number>;
-
-  float32: WriterFn<Async, number>;
-  float64: WriterFn<Async, number>;
-
-  bytesRaw: WriterFn<Async, Uint8Array>;
-  bytes: WriterFn<Async, Uint8Array>;
-  string: WriterFn<Async, string>;
-
-  constructor(options: DataStreamOptions<Async>) {
-    super(options);
-    this.stream = new StreamWriter(options.buffer);
-
-    this.bool = this.createWriter(1, (v, r) => r.view.setUint8(0, v ? 1 : 0));
-    this.uint8 = this.createWriter(1, (v, r) => r.view.setUint8(0, v));
-    this.uint16 = this.createWriter(2, (v, r) => r.view.setUint16(0, v));
-    this.uint32 = this.createWriter(4, (v, r) => r.view.setUint32(0, v));
-    this.uint64 = this.createWriter(8, (v, r) => r.view.setBigUint64(0, BigInt(v)));
-
-    this.int8 = this.createWriter(1, (v, r) => r.view.setInt8(0, v));
-    this.int16 = this.createWriter(2, (v, r) => r.view.setInt16(0, v));
-    this.int32 = this.createWriter(4, (v, r) => r.view.setInt32(0, v));
-    this.int64 = this.createWriter(8, (v, r) => r.view.setBigInt64(0, BigInt(v)));
-
-    this.float32 = this.createWriter(4, (v, r) => r.view.setFloat32(0, v));
-    this.float64 = this.createWriter(8, (v, r) => r.view.setFloat64(0, v));
-
-    this.bytesRaw = this.createRawBytesWriter();
-    this.bytes = this.createBytesWriter();
-    this.string = this.createStringWriter();
-  }
-
-  private createWriter<T>(
-    count: number,
-    write: (value: T, res: StreamWriterReservation, offset: number) => void,
-    flexible?: boolean,
-  ): WriterFn<Async, T> {
-    const fn = this.async
-      ? async (value: T) => {
-          if (this.isAsyncWriting)
-            throw new Error(
-              "Attempt to write to the stream before an on-going write has finished. You may have forgotten to `await` one of the DataStreamWriter methods.",
-            );
-          this.isAsyncWriting = true;
-
-          let offset = 0;
-          while (true) {
-            const requestSize = count - offset;
-            let res = this.stream.reserve(requestSize, flexible);
-
-            /* Spin waiting for a reservation */
-            if (res === null) {
-              this.lock.reset();
-              while (res === null) {
-                await this.lock.spin();
-                res = this.stream.reserve(requestSize, flexible);
-              }
-            }
-
-            write(value, res, offset);
-            offset += res.data.length;
-            res.commit();
-            if (offset === count) {
-              this.isAsyncWriting = false;
-              return;
-            }
-          }
-        }
-      : (value: T) => {
-          let offset = 0;
-          while (true) {
-            const requestSize = count - offset;
-            let res = this.stream.reserve(requestSize, flexible);
-
-            /* Spin waiting for a reservation */
-            if (res === null) {
-              this.lock.reset();
-              while (res === null) {
-                this.lock.spin();
-                res = this.stream.reserve(requestSize, flexible);
-              }
-            }
-
-            write(value, res, offset);
-            offset += res.data.length;
-            res.commit();
-            if (offset === count) return;
-          }
-        };
-
-    return fn as WriterFn<Async, T>;
-  }
-
-  private createRawBytesWriter(): WriterFn<Async, Uint8Array> {
-    const writeChunk = (value: Uint8Array, res: StreamWriterReservation, offset: number) => {
-      res.data.set(value.subarray(offset, offset + res.data.length));
-    };
-
-    const fn = this.async
-      ? async (value: Uint8Array) => {
-          if (value.length === 0) return;
-          const writer = this.createWriter(value.length, writeChunk, true);
-          await writer(value);
-        }
-      : (value: Uint8Array) => {
-          if (value.length === 0) return;
-          const writer = this.createWriter(value.length, writeChunk, true);
-          writer(value);
-        };
-    return fn as WriterFn<Async, Uint8Array>;
-  }
-
-  private createBytesWriter(): WriterFn<Async, Uint8Array> {
-    const fn = this.async
-      ? async (value: Uint8Array) => {
-          await this.uint32(value.length);
-          await this.bytesRaw(value);
-        }
-      : (value: Uint8Array) => {
-          this.uint32(value.length);
-          this.bytesRaw(value);
-        };
-    return fn as WriterFn<Async, Uint8Array>;
-  }
-
-  private createStringWriter(): WriterFn<Async, string> {
-    const fn = this.async
-      ? async (value: string) => {
-          await this.bytes(this.encoder.encode(value));
-        }
-      : (value: string) => {
-          this.bytes(this.encoder.encode(value));
-        };
-    return fn as WriterFn<Async, string>;
   }
 }
 
@@ -627,196 +436,177 @@ class ScratchBuffer {
   }
 }
 
-export class DataStreamReader<Async extends boolean = false> extends DataStream<Async> {
-  private stream: StreamReader;
-  private scratch = new ScratchBuffer();
+/**
+ * Represent data in a packed format and provides methods for reading it sequentially.
+ */
+export class ReadableChunk {
+  private offset = 0;
+  private view: DataView;
   private decoder = new TextDecoder();
+
+  /**
+   * Creates a new chunk.
+   * @param reader The stream reader this chunk originates from
+   * @param data The data buffer of this chunk
+   * @param owned Whether or not this chunk is a view over the raw stream buffer it came from (`false`), or an intermediate buffer (`true`).
+   */
+  public constructor(
+    private readonly reader: StreamReader,
+    private readonly data: Uint8Array,
+    private readonly owned: boolean,
+  ) {
+    this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  }
+
+  /**
+   * Mark this chunk as having been read.
+   */
+  public release() {
+    if (this.owned) {
+      this.reader.consume(this.offset);
+    }
+  }
+
+  public uint8() {
+    const value = this.view.getUint8(this.offset);
+    this.offset += 1;
+    return value;
+  }
+
+  public bool() {
+    return this.uint8() !== 0;
+  }
+
+  public uint16() {
+    const value = this.view.getUint16(this.offset);
+    this.offset += 2;
+    return value;
+  }
+
+  public uint32() {
+    const value = this.view.getUint32(this.offset);
+    this.offset += 4;
+    return value;
+  }
+
+  public uint64() {
+    const value = this.view.getBigUint64(this.offset);
+    this.offset += 8;
+    return Number(value);
+  }
+
+  public int8() {
+    const value = this.view.getInt8(this.offset);
+    this.offset += 1;
+    return value;
+  }
+
+  public int16() {
+    const value = this.view.getInt16(this.offset);
+    this.offset += 2;
+    return value;
+  }
+
+  public int32() {
+    const value = this.view.getInt32(this.offset);
+    this.offset += 4;
+    return value;
+  }
+
+  public int64() {
+    const value = this.view.getBigInt64(this.offset);
+    this.offset += 8;
+    return Number(value);
+  }
+
+  public float32() {
+    const value = this.view.getFloat32(this.offset);
+    this.offset += 4;
+    return value;
+  }
+
+  public float64() {
+    const value = this.view.getFloat64(this.offset);
+    this.offset += 8;
+    return value;
+  }
+
+  public bytes() {
+    const length = this.uint32();
+    const value = this.data.subarray(this.offset, this.offset + length);
+    this.offset += length;
+    return value;
+  }
+
+  public string() {
+    let view = this.bytes();
+
+    // We can't deserialize from a SharedArrayBuffer view
+    if (!this.owned) view = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+
+    return this.decoder.decode(view);
+  }
+}
+
+/**
+ * Reads chunks from a stream asynchronously.
+ */
+export class AsyncChunkReader {
+  private readonly lock: AsyncLock;
+  private readonly stream: StreamReader;
+  private readonly scratch = new ScratchBuffer();
+
   private isAsyncReading = false;
 
-  bool: ReaderFn<Async, boolean>;
-
-  uint8: ReaderFn<Async, number>;
-  uint16: ReaderFn<Async, number>;
-  uint32: ReaderFn<Async, number>;
-  uint64: ReaderFn<Async, number>;
-
-  int8: ReaderFn<Async, number>;
-  int16: ReaderFn<Async, number>;
-  int32: ReaderFn<Async, number>;
-  int64: ReaderFn<Async, number>;
-
-  float32: ReaderFn<Async, number>;
-  float64: ReaderFn<Async, number>;
-
-  /**
-   * Reads `count` bytes from the stream.
-   * @param count Number of bytes to read.
-   * @returns The consumed bytes. This is a view over an intermediate buffer.
-   *          **You must not consume from this buffer after reading another object from this reader, or it will be corrupted!**
-   */
-  bytesRaw: ReaderFn<Async, Uint8Array, [count: number]>;
-
-  /**
-   * Reads a length-prefixed byte array from the stream.
-   * @returns The consumed bytes. This is a view over an intermediate buffer.
-   *          **You must not consume from this buffer after reading another object from this reader, or it will be corrupted!**
-   *
-   * It is assumed that the beginning of the value will be a `uint32` representing
-   * the length of the byte array.
-   */
-  bytes: ReaderFn<Async, Uint8Array>;
-
-  /**
-   * Reads a length-prefixed UTF8 string from the stream.
-   *
-   * @returns The decoded string.
-   *
-   * It is assumed that the beginning of the value will be a `uint32` representing
-   * the length of the encoded string.
-   */
-  string: ReaderFn<Async, string>;
-
-  constructor(options: DataStreamOptions<Async>) {
-    super(options);
-    this.stream = new StreamReader(options.buffer);
-
-    this.bool = this.createReader(1, (v) => v.getUint8(0) > 0);
-
-    this.uint8 = this.createReader(1, (v) => v.getUint8(0));
-    this.uint16 = this.createReader(2, (v) => v.getUint16(0));
-    this.uint32 = this.createReader(4, (v) => v.getUint32(0));
-    this.uint64 = this.createReader(8, (v) => Number(v.getBigUint64(0)));
-
-    this.int8 = this.createReader(1, (v) => v.getInt8(0));
-    this.int16 = this.createReader(2, (v) => v.getInt16(0));
-    this.int32 = this.createReader(4, (v) => v.getInt32(0));
-    this.int64 = this.createReader(8, (v) => Number(v.getBigInt64(0)));
-
-    this.float32 = this.createReader(4, (v) => v.getFloat32(0));
-    this.float64 = this.createReader(8, (v) => v.getFloat64(0));
-
-    this.bytesRaw = this.createRawBytesReader();
-    this.bytes = this.createBytesReader();
-    this.string = this.createStringReader();
+  constructor(private buffer: SharedArrayBuffer, strategy?: LockStrategy) {
+    strategy ??= LockStrategy.busy;
+    this.lock = new AsyncLock(strategy);
+    this.stream = new StreamReader(buffer);
   }
 
-  /**
-   * Core data stream reading implementation.
-   * @param count The number of bytes needed to construct an instance of `T`
-   * @returns A function which when called will read an instance of `T` from the stream.
-   */
-  private createReader<T extends Exclude<unknown, undefined>>(
-    count: number,
-    copy: (view: DataView) => T,
-    move?: ((view: DataView) => T) | null,
-  ): ReaderFn<Async, T> {
-    const moveFn = move !== null ? move ?? copy : undefined;
+  public async read(): Promise<ReadableChunk> {
+    const byteLength = await this.readValue(4, (v) =>
+      new DataView(v.buffer, v.byteOffset, v.byteLength).getUint32(0),
+    );
+    const data = await this.readValue(byteLength, (v) => v);
+    return new ReadableChunk(this.stream, data, data.buffer !== this.buffer);
+  }
 
-    const tryRead = (view: Uint8Array) => {
-      /* If we are able to construct in-place from the stream, do so */
-      if (moveFn && this.scratch.size === 0 && view.length >= count) {
-        const result = moveFn(
-          new DataView(view.buffer, view.byteOffset, Math.min(count, view.length)),
-        );
-        this.stream.consume(count);
-        return result;
+  private async readValue<T>(byteLength: number, ctor: (data: Uint8Array) => T): Promise<T> {
+    if (this.isAsyncReading)
+      throw new Error(
+        "Attempt to read from the stream before an on-going read has finished. You may have forgotten to `await` one of the DataStreamReader methods.",
+      );
+    this.isAsyncReading = true;
+
+    this.scratch.reserve(byteLength);
+
+    try {
+      while (true) {
+        /* Spin until the read buffer has data */
+        let view: Uint8Array = this.stream.valid();
+
+        if (byteLength > 0 && view.length === 0) {
+          this.lock.reset();
+          while (view.length === 0) {
+            await this.lock.spin();
+            view = this.stream.valid();
+          }
+        }
+
+        /* Attempt to construct in-place from the stream */
+        if (this.scratch.size === 0 && view.length >= byteLength) {
+          return ctor(
+            new Uint8Array(view.buffer, view.byteOffset, Math.min(byteLength, view.length)),
+          );
+        }
+
+        /* Otherwise, we must accumulate into the scratch buffer */
+        this.stream.consume(this.scratch.push(view));
+        if (this.scratch.size === byteLength) return ctor(this.scratch.data);
       }
-
-      /* Otherwise, we must accumulate into the scratch buffer */
-      this.stream.consume(this.scratch.push(view));
-      if (this.scratch.size === count) return copy(this.scratch.view);
-    };
-
-    const fn = this.async
-      ? async () => {
-          if (this.isAsyncReading)
-            throw new Error(
-              "Attempt to read from the stream before an on-going read has finished. You may have forgotten to `await` one of the DataStreamReader methods.",
-            );
-          this.isAsyncReading = true;
-
-          this.scratch.reserve(count);
-
-          while (true) {
-            /* Spin until the read buffer has data */
-            let view: Uint8Array = this.stream.valid();
-
-            if (count > 0 && view.length === 0) {
-              this.lock.reset();
-              while (view.length === 0) {
-                await this.lock.spin();
-                view = this.stream.valid();
-              }
-            }
-
-            const result = tryRead(view);
-            if (result !== undefined) {
-              this.isAsyncReading = false;
-              return result;
-            }
-          }
-        }
-      : () => {
-          this.scratch.reserve(count);
-
-          while (true) {
-            /* Spin until the read buffer has data */
-            let view: Uint8Array = this.stream.valid();
-
-            if (count > 0 && view.length === 0) {
-              this.lock.reset();
-              while (view.length === 0) {
-                this.lock.spin();
-                view = this.stream.valid();
-              }
-            }
-
-            const result = tryRead(view);
-            if (result !== undefined) return result;
-          }
-        };
-
-    return fn as ReaderFn<Async, T>;
-  }
-
-  private createRawBytesReader(): ReaderFn<Async, Uint8Array, [number]> {
-    const copy = (v: DataView) => new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
-    const fn = this.async
-      ? async (count: number) => {
-          const reader = this.createReader(count, copy, null);
-          return await reader();
-        }
-      : (count: number) => {
-          const reader = this.createReader(count, copy, null);
-          return reader();
-        };
-
-    return fn as ReaderFn<Async, Uint8Array, [number]>;
-  }
-
-  private createBytesReader(): ReaderFn<Async, Uint8Array> {
-    const fn = this.async
-      ? async () => {
-          const count = await this.uint32();
-          return await this.bytesRaw(count);
-        }
-      : () => {
-          const count = this.uint32() as number;
-          return this.bytesRaw(count) as Uint8Array;
-        };
-    return fn as ReaderFn<Async, Uint8Array>;
-  }
-
-  private createStringReader(): ReaderFn<Async, string> {
-    const fn = this.async
-      ? async () => {
-          const bytes = await this.bytes();
-          return this.decoder.decode(bytes);
-        }
-      : () => {
-          const bytes = this.bytes() as Uint8Array;
-          return this.decoder.decode(bytes);
-        };
-    return fn as ReaderFn<Async, string>;
+    } finally {
+      this.isAsyncReading = false;
+    }
   }
 }
