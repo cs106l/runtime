@@ -183,12 +183,14 @@ class Context2D(repr=False):
 
     __id: int = 0
 
-    def __init__(self):
+    def __init__(self, *, width: float = 300, height: float = 150):
         self.__id = Context2D.__next_id
         Context2D.__next_id += 1
         if self.__id >= 256:
             raise Exception("Too many Context2D instances! A program can only have 256 Context2D instances at once")
-        self.__dispatch(0) # Create
+        self.__dispatch(0, round(width).to_bytes(2) + round(height).to_bytes(2))
+        self.__width = width
+        self.__height = height
     
     def remove(self):
         self.__dispatch(1) # Remove
@@ -605,6 +607,9 @@ class Context2D(repr=False):
         self.__dispatch(52, _pack_enum(value, _GLOBAL_COMPOSITE_OPERATION))
         self.__global_composite_operation = value
 
+    def reset(self):
+        self.__dispatch(55)
+
     __filter: str = None
 
     @property
@@ -614,6 +619,7 @@ class Context2D(repr=False):
     def filter(self, value: str):
         if value == self.__filter: return
         self.__filter = value
+        self.__dispatch(56, _pack_string(value))
 
     __image_smoothing_enabled: bool = True
 
@@ -623,7 +629,7 @@ class Context2D(repr=False):
     @image_smoothing_enabled.setter
     def image_smoothing_enabled(self, value: bool):
         if value == self.__image_smoothing_enabled: return
-        self.__dispatch(53, b"\x01" if value else b"\x00")
+        self.__dispatch(59, b"\x01" if value else b"\x00")
         self.__image_smoothing_enabled = value
 
     __image_smoothing_quality: str = "low"
@@ -634,7 +640,7 @@ class Context2D(repr=False):
     @image_smoothing_quality.setter
     def image_smoothing_quality(self, value: str):
         if value == self.__image_smoothing_quality: return
-        self.__dispatch(54, _pack_enum(value, _IMAGE_SMOOTHING_QUALITY))
+        self.__dispatch(60, _pack_enum(value, _IMAGE_SMOOTHING_QUALITY))
         self.__image_smoothing_quality = value
 
     def __dispatch(self, event_type: int, data: bytes = b""):

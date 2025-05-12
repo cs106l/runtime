@@ -6,13 +6,15 @@ import { AsyncChunkReader, ReadableChunk } from "../stream";
  * This identifier must fit within an unsigned byte, so a program
  * can maintain up to 255 concurrent canvases.
  */
-export type CanvasId = number;
+export type CanvasID = number;
 
 export enum CanvasEventType {
   /* Canvas control */
 
   /**
    * Creates or reuses a new canvas DOM node with the requested identifier.
+   *
+   * `[width: int16] [height: int16]`
    */
   Create = 0,
 
@@ -497,9 +499,10 @@ export enum CanvasEventType {
   /**
    * [reset](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/reset)
    *
-   * This operation is newly available and may not be supported in every browser.
+   * This operation differs from the normal RenderingContext2D: it merely clears the canvas screen!
+   * It doesn't affect the canvas state at all.
    */
-  // Reset = 55,
+  Reset = 55,
 
   /* Filters */
 
@@ -672,11 +675,11 @@ export type CanvasEvent = Awaited<ReturnType<typeof unpackCanvasEvent>>;
 
 export function unpackCanvasEvent(chunk: ReadableChunk) {
   const type: CanvasEventType = chunk.uint8();
-  const id: CanvasId = chunk.uint8();
+  const id: CanvasID = chunk.uint8();
 
   switch (type) {
     case CanvasEventType.Create:
-      return [type, id] as const;
+      return [type, id, chunk.int16(), chunk.int16()] as const;
 
     case CanvasEventType.Remove:
       return [type, id] as const;
@@ -756,7 +759,7 @@ export function unpackCanvasEvent(chunk: ReadableChunk) {
       return [type, id, fontVariantCaps[chunk.uint8()]] as const;
 
     case CanvasEventType.WordSpacing:
-      return [type, id, chunk.string()];
+      return [type, id, chunk.string()] as const;
 
     case CanvasEventType.FillStyle:
     case CanvasEventType.StrokeStyle:
@@ -845,7 +848,7 @@ export function unpackCanvasEvent(chunk: ReadableChunk) {
         chunk.int16(), // cpy
         chunk.int16(), // x
         chunk.int16(), // y
-      ];
+      ] as const;
 
     case CanvasEventType.Arc:
       return [
@@ -935,8 +938,8 @@ export function unpackCanvasEvent(chunk: ReadableChunk) {
 
     // case CanvasEventType.Save:
     // case CanvasEventType.Restore:
-    // case CanvasEventType.Reset:
-    //   return [type, id] as const;
+    case CanvasEventType.Reset:
+      return [type, id] as const;
 
     case CanvasEventType.Filter:
       return [type, id, chunk.string()] as const;
