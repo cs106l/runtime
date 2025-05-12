@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from struct import pack
 from typing import ClassVar, Optional, TextIO
 
@@ -289,7 +289,7 @@ class Context2D:
         self.__dispatch(13, pack("f", value))
         self.__miter_limit = value
 
-    __line_dash: list[int] = []
+    __line_dash: list[int] = field(default_factory=list)
 
     def get_line_dash(self): return self.__line_dash[:]
 
