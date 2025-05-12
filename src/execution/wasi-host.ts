@@ -2,8 +2,7 @@ import { WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
 import type { CrashHostMessage, HostMessage, WorkerMessage } from "./wasi-worker";
 
 import WASIWorker from "./wasi-worker?worker&inline";
-import { SerializedStream } from "./connection";
-import { CanvasEventHandler, nonVoidActions } from "./canvas";
+import { CanvasHost } from "./canvas/host";
 
 function sendMessage(worker: Worker, message: WorkerMessage, transfer?: Transferable[]) {
   worker.postMessage(message, transfer ?? []);
@@ -11,7 +10,7 @@ function sendMessage(worker: Worker, message: WorkerMessage, transfer?: Transfer
 
 type WASIWorkerHostContext = Partial<Omit<WASIContextOptions, "stdin" | "fs">> & {
   fs: WASIFS;
-  canvas?: CanvasEventHandler;
+  canvas?: CanvasHost;
 };
 
 export class WASIWorkerHostKilledError extends Error {}
@@ -33,8 +32,6 @@ export class WASIWorkerHost {
   result?: Promise<WASIExecutionResult>;
   worker?: Worker;
   reject?: (reason?: unknown) => void;
-
-  private canvasStream = new SerializedStream(new SharedArrayBuffer(1024));
 
   constructor(binaryURL: string, context: WASIWorkerHostContext) {
     this.binaryURL = binaryURL;
@@ -62,15 +59,6 @@ export class WASIWorkerHost {
           case "result":
             resolve(message.result);
             break;
-
-          case "canvasEvent":
-            for (let i = 0; i < message.events.length; i++) {
-              const event = message.events[i];
-              const result = this.context.canvas?.onEvent(event);
-              if (i === message.events.length - 1 && nonVoidActions.has(event.action))
-                this.canvasStream.send(result as any);
-            }
-            break;
           case "crash":
             reject(new WASIWorkerCrashedError(message));
             break;
@@ -89,8 +77,6 @@ export class WASIWorkerHost {
         env: this.context.env,
         fs: this.context.fs,
         isTTY: this.context.isTTY,
-
-        canvasBuffer: this.canvasStream.buffer,
       });
     }).then((result) => {
       this.worker?.terminate();

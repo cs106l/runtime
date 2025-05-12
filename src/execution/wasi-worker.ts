@@ -1,7 +1,6 @@
 import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
-import { SerializedStream } from "./connection";
-import { BaseCanvasEvent, nonVoidActions } from "./canvas";
-import { CanvasAwareDrive } from "./drive";
+import { CanvasConnection } from "./canvas/host";
+import { VirtualDrive } from "./drive";
 
 type StartWorkerMessage = {
   target: "client";
@@ -9,7 +8,7 @@ type StartWorkerMessage = {
   binaryURL: string;
   stdinBuffer: SharedArrayBuffer;
   fs: WASIFS;
-  canvasBuffer: SharedArrayBuffer;
+  canvasConnection?: CanvasConnection;
 } & Partial<Omit<WASIContextOptions, "stdin" | "stdout" | "stderr" | "debug" | "fs">>;
 
 export type WorkerMessage = StartWorkerMessage;
@@ -42,27 +41,20 @@ export type CrashHostMessage = {
   };
 };
 
-type CanvasEventMessage = {
-  target: "host";
-  type: "canvasEvent";
-  events: BaseCanvasEvent[];
-};
-
 export type HostMessage =
   | StdoutHostMessage
   | StderrHostMessage
   | ResultHostMessage
-  | CrashHostMessage
-  | CanvasEventMessage;
+  | CrashHostMessage;
 
 onmessage = async (ev: MessageEvent) => {
   const data = ev.data as WorkerMessage;
 
   switch (data.type) {
     case "start":
+      const drive = new VirtualDrive(data.fs, data.canvasConnection);
       try {
-        const result = await start(data);
-        flushEventBuffer();
+        const result = await start(data, drive);
         sendMessage({
           target: "host",
           type: "result",
@@ -81,12 +73,13 @@ onmessage = async (ev: MessageEvent) => {
             message: String(e)
           };
         }
-        flushEventBuffer();
         sendMessage({
           target: "host",
           type: "crash",
           error,
         });
+      } finally {
+        drive.disconnect();
       }
       break;
   }
@@ -96,54 +89,13 @@ function sendMessage(message: HostMessage) {
   postMessage(message);
 }
 
-let drive: CanvasAwareDrive | null = null;
-let eventBuffer: BaseCanvasEvent[] = [];
-
-function flushEventBuffer() {
-  sendMessage({ target: "host", type: "canvasEvent", events: eventBuffer });
-  eventBuffer.length = 0;
-}
-
-function createDrive(message: StartWorkerMessage) {
-  const sleep = new Int32Array(new SharedArrayBuffer(4));
-  const canvasStream = new SerializedStream(message.canvasBuffer);
-
-  drive = new CanvasAwareDrive(
-    {
-      onEvent(event) {
-        if (event.action === "sleep") {
-          /* Sleep is handled specially, we just wait for some number of milliseconds.
-           * No communication with the main thread is needed */
-          Atomics.wait(sleep, 0, 0, event.args[0] as number);
-          return;
-        }
-
-        if (event.action === "commit") {
-          flushEventBuffer();
-          return;
-        }
-
-        if (nonVoidActions.has(event.action)) {
-          eventBuffer.push(event);
-          flushEventBuffer();
-          return canvasStream.receive();
-        }
-
-        eventBuffer.push(event);
-      },
-    },
-    message.fs,
-  );
-  return drive;
-}
-
-async function start(message: StartWorkerMessage) {
+async function start(message: StartWorkerMessage, drive: VirtualDrive) {
   return WASI.start(fetch(message.binaryURL), {
     ...message,
     stdout: sendStdout,
     stderr: sendStderr,
     stdin: (maxByteLength) => getStdin(maxByteLength, message.stdinBuffer),
-    fs: createDrive(message),
+    fs: drive
   });
 }
 

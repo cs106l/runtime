@@ -5,7 +5,7 @@ import type { PackageRef, PackageWorkspace } from "../packages";
 import { LanguagesConfig } from "./languages";
 import { fetchWASIFS } from "../utils";
 import { WASIWorkerHost, WASIWorkerHostKilledError } from "./wasi-host";
-import { CanvasEventHandler } from "./canvas";
+import { CanvasHost } from "./canvas/host";
 
 /*
  * ============================================================================
@@ -123,7 +123,7 @@ export type WriteFn = (data: string) => void;
 
 export type OutputConfig = {
   write?: WriteFn;
-  canvas?: CanvasEventHandler;
+  canvas?: CanvasHost;
 };
 
 /**
@@ -291,3 +291,4 @@ export function configure(language: Language): LanguageConfiguration {
 }
 
 export * from "./canvas";
+export * from "./canvas/host";

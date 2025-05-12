@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from struct import pack
 from typing import ClassVar, Optional, TextIO
 
@@ -176,8 +176,8 @@ class _RadialGradient(CanvasGradient):
                 round(self._r1).to_bytes(2))
 
 
-@dataclass
-class Context2D(repr=False):
+@dataclass(repr=False)
+class Context2D:
     __file: ClassVar[TextIO] = open("/dev/canvas", "wb")
     __next_id: ClassVar[int] = 0
 
@@ -309,7 +309,7 @@ class Context2D(repr=False):
         self.__dispatch(15, pack("f", value))
         self.__line_dash_offset = value
 
-    __font: str = "12px sans-serif"
+    __font: str = "10px sans-serif"
 
     @property
     def font(self): return self.__font
@@ -680,7 +680,3 @@ class Context2D(repr=False):
                         pack("f", m22) + 
                         pack("f", m31) + 
                         pack("f", m32))
-
-
-
-

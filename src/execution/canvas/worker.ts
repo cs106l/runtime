@@ -154,6 +154,10 @@ async function enterEventLoop(connection: CanvasConnection) {
       const event = unpackCanvasEvent(chunk);
       const globalId = getGlobalId(connection.instanceId, event[1]);
 
+      if (event[0] === CanvasEventType.ConnectionClosed) {
+        return;
+      }
+
       if (event[0] === CanvasEventType.Create) {
         const response = await sendAndReceive(
           {
@@ -179,16 +183,14 @@ async function enterEventLoop(connection: CanvasConnection) {
             `Couldn't get rendering context from response: ${JSON.stringify(response)}`,
           );
 
+        resetContext(context);
         contexts.set(globalId, { context, contextId: response.contextId, eventLog: [] });
         continue;
       }
 
-      if (event[0] === CanvasEventType.ConnectionClosed) {
-        return;
-      }
-
       const registration = contexts.get(globalId);
       if (!registration) return;
+      if (registration.removed) return;
 
       if (event[0] === CanvasEventType.Remove) {
         registration.removed = true;
@@ -238,6 +240,43 @@ async function enterEventLoop(connection: CanvasConnection) {
       chunk.release();
     }
   }
+}
+
+/**
+ * `ctx.reset()` is not valid on some platforms since it is fairly new.
+ * This function does the equivalent.
+ *
+ * @param ctx - The context to reset
+ */
+function resetContext(ctx: OffscreenCanvasRenderingContext2D) {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.resetTransform();
+  ctx.fillStyle = "black";
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 1;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.miterLimit = 10;
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
+  ctx.direction = "ltr";
+  ctx.letterSpacing = "0px";
+  ctx.fontKerning = "normal";
+  ctx.fontStretch = "normal";
+  ctx.fontVariantCaps = "normal";
+  ctx.wordSpacing = "0px";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "rgba(0, 0, 0, 0)";
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "low";
 }
 
 function applyEvent(reg: CanvasRegistration, evt: CanvasEvent, replay?: boolean) {
