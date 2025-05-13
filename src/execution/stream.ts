@@ -442,29 +442,18 @@ class ScratchBuffer {
 export class ReadableChunk {
   private offset = 0;
   private view: DataView;
-  private decoder = new TextDecoder();
+  private static decoder = new TextDecoder();
 
   /**
    * Creates a new chunk.
-   * @param reader The stream reader this chunk originates from
    * @param data The data buffer of this chunk
    * @param owned Whether or not this chunk is a view over the raw stream buffer it came from (`false`), or an intermediate buffer (`true`).
    */
   public constructor(
-    private readonly reader: StreamReader,
     public readonly data: Uint8Array,
     private readonly owned: boolean,
   ) {
     this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  }
-
-  /**
-   * Mark this chunk as having been read.
-   */
-  public release() {
-    if (!this.owned) {
-      this.reader.consume(this.offset);
-    }
   }
 
   public uint8() {
@@ -544,7 +533,7 @@ export class ReadableChunk {
     // We can't deserialize from a SharedArrayBuffer view, so we must make a copy
     if (!this.owned) view = new Uint8Array(view);
 
-    return this.decoder.decode(view);
+    return ReadableChunk.decoder.decode(view);
   }
 }
 
@@ -571,8 +560,13 @@ export class AsyncChunkReader {
       return ret;
     });
     const data = await this.readValue(byteLength, (v) => v);
-    return new ReadableChunk(this.stream, data, data.buffer !== this.buffer);
+    return new ReadableChunk(data, data.buffer !== this.buffer);
   }
+
+
+  public async *readAll(): AsyncIterableIterator<ReadableChunk> {
+  }
+
 
   private async readValue<T>(byteLength: number, ctor: (data: Uint8Array) => T): Promise<T> {
     if (this.isAsyncReading)
