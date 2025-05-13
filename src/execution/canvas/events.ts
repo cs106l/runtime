@@ -974,3 +974,388 @@ export function unpackCanvasEvent(chunk: ReadableChunk) {
       throw new Error(`Unknown canvas event type: ${type}`);
   }
 }
+
+export class CanvasTheme {
+  public colorMap: Record<string, string>;
+
+  constructor() {
+    this.colorMap = {};
+  }
+
+  public get(color: string) {
+    return this.colorMap[color] ?? color;
+  }
+}
+
+export function applyEventToContext(ctx: OffscreenCanvasRenderingContext2D, evt: CanvasEvent, theme: CanvasTheme) {
+  switch (evt[0]) {
+    case CanvasEventType.ClearRect: {
+      const [_, __, ...args] = evt;
+      ctx.clearRect(...args);
+      break;
+    }
+
+    case CanvasEventType.FillRect: {
+      const [_, __, ...args] = evt;
+      ctx.fillRect(...args);
+      break;
+    }
+
+    case CanvasEventType.StrokeRect: {
+      const [_, __, ...args] = evt;
+      ctx.strokeRect(...args);
+      break;
+    }
+
+    case CanvasEventType.FillText: {
+      const [_, __, ...args] = evt;
+      ctx.fillText(...args);
+      break;
+    }
+
+    case CanvasEventType.StrokeText: {
+      const [_, __, ...args] = evt;
+      ctx.strokeText(...args);
+      break;
+    }
+
+    case CanvasEventType.TextRendering: {
+      const [_, __, ...args] = evt;
+      ctx.textRendering = args[0];
+      break;
+    }
+
+    case CanvasEventType.LineWidth: {
+      const [_, __, ...args] = evt;
+      ctx.lineWidth = args[0];
+      break;
+    }
+
+    case CanvasEventType.LineCap: {
+      const [_, __, ...args] = evt;
+      ctx.lineCap = args[0];
+      break;
+    }
+
+    case CanvasEventType.LineJoin: {
+      const [_, __, ...args] = evt;
+      ctx.lineJoin = args[0];
+      break;
+    }
+
+    case CanvasEventType.MiterLimit: {
+      const [_, __, ...args] = evt;
+      ctx.miterLimit = args[0];
+      break;
+    }
+
+    case CanvasEventType.SetLineDash: {
+      const [_, __, ...args] = evt;
+      ctx.setLineDash(args[0]);
+      break;
+    }
+
+    case CanvasEventType.LineDashOffset: {
+      const [_, __, ...args] = evt;
+      ctx.lineDashOffset = args[0];
+      break;
+    }
+
+    case CanvasEventType.Font: {
+      const [_, __, ...args] = evt;
+      ctx.font = args[0];
+      break;
+    }
+
+    case CanvasEventType.TextAlign: {
+      const [_, __, ...args] = evt;
+      ctx.textAlign = args[0];
+      break;
+    }
+
+    case CanvasEventType.TextBaseline: {
+      const [_, __, ...args] = evt;
+      ctx.textBaseline = args[0];
+      break;
+    }
+
+    case CanvasEventType.Direction: {
+      const [_, __, ...args] = evt;
+      ctx.direction = args[0];
+      break;
+    }
+
+    case CanvasEventType.LetterSpacing: {
+      const [_, __, ...args] = evt;
+      ctx.letterSpacing = args[0];
+      break;
+    }
+
+    case CanvasEventType.FontKerning: {
+      const [_, __, ...args] = evt;
+      ctx.fontKerning = args[0];
+      break;
+    }
+
+    case CanvasEventType.FontStretch: {
+      const [_, __, ...args] = evt;
+      ctx.fontStretch = args[0];
+      break;
+    }
+
+    case CanvasEventType.FontVariantCaps: {
+      const [_, __, ...args] = evt;
+      ctx.fontVariantCaps = args[0];
+      break;
+    }
+
+    case CanvasEventType.WordSpacing: {
+      const [_, __, ...args] = evt;
+      ctx.wordSpacing = args[0];
+      break;
+    }
+
+    case CanvasEventType.FillStyle:
+    case CanvasEventType.StrokeStyle: {
+      const [_, __, ...args] = evt;
+
+      let style: string | CanvasGradient;
+
+      if (typeof args[0] === "object") {
+        const grad = args[0];
+        let canvasGrad: CanvasGradient;
+
+        if (grad.type === GradientType.Linear) canvasGrad = ctx.createLinearGradient(...grad.args);
+        else if (grad.type === GradientType.Conic)
+          canvasGrad = ctx.createConicGradient(...grad.args);
+        else if (grad.type === GradientType.Radial)
+          canvasGrad = ctx.createRadialGradient(...grad.args);
+        else throw new Error(`Unknown gradient type`);
+
+        for (const stop of grad.stops) {
+          canvasGrad.addColorStop(stop.offset, theme.get(stop.color));
+        }
+
+        style = canvasGrad;
+      } else {
+        style = theme.get(args[0]);
+      }
+
+      if (evt[0] === CanvasEventType.StrokeStyle) ctx.strokeStyle = style;
+      else ctx.fillStyle = style;
+      break;
+    }
+
+    case CanvasEventType.ShadowBlur: {
+      const [_, __, ...args] = evt;
+      ctx.shadowBlur = args[0];
+      break;
+    }
+
+    case CanvasEventType.ShadowColor: {
+      const [_, __, ...args] = evt;
+      ctx.shadowColor = theme.get(args[0]);
+      break;
+    }
+
+    case CanvasEventType.ShadowOffsetX: {
+      const [_, __, ...args] = evt;
+      ctx.shadowOffsetX = args[0];
+      break;
+    }
+
+    case CanvasEventType.ShadowOffsetY: {
+      const [_, __, ...args] = evt;
+      ctx.shadowOffsetY = args[0];
+      break;
+    }
+
+    case CanvasEventType.BeginPath: {
+      ctx.beginPath();
+      break;
+    }
+
+    case CanvasEventType.ClosePath: {
+      ctx.closePath();
+      break;
+    }
+
+    case CanvasEventType.MoveTo: {
+      const [_, __, ...args] = evt;
+      ctx.moveTo(...args);
+      break;
+    }
+
+    case CanvasEventType.LineTo: {
+      const [_, __, ...args] = evt;
+      ctx.lineTo(...args);
+      break;
+    }
+
+    case CanvasEventType.BezierCurveTo: {
+      const [_, __, ...args] = evt;
+      ctx.bezierCurveTo(...args);
+      break;
+    }
+
+    case CanvasEventType.QuadraticCurveTo: {
+      const [_, __, ...args] = evt;
+      ctx.quadraticCurveTo(...args);
+      break;
+    }
+
+    case CanvasEventType.Arc: {
+      const [_, __, ...args] = evt;
+      ctx.arc(...args);
+      break;
+    }
+
+    case CanvasEventType.ArcTo: {
+      const [_, __, ...args] = evt;
+      ctx.arcTo(...args);
+      break;
+    }
+
+    case CanvasEventType.Ellipse: {
+      const [_, __, ...args] = evt;
+      ctx.ellipse(...args);
+      break;
+    }
+
+    case CanvasEventType.Rect: {
+      const [_, __, ...args] = evt;
+      ctx.rect(...args);
+      break;
+    }
+
+    case CanvasEventType.RoundRect: {
+      const [_, __, ...args] = evt;
+      ctx.roundRect(...args);
+      break;
+    }
+
+    case CanvasEventType.Fill: {
+      const [_, __, ...args] = evt;
+      ctx.fill(...args);
+      break;
+    }
+
+    case CanvasEventType.Stroke: {
+      const [_, __, ...args] = evt;
+      ctx.stroke(...args);
+      break;
+    }
+
+    case CanvasEventType.Clip: {
+      const [_, __, ...args] = evt;
+      ctx.clip(...args);
+      break;
+    }
+
+    case CanvasEventType.Rotate: {
+      const [_, __, ...args] = evt;
+      ctx.rotate(...args);
+      break;
+    }
+
+    case CanvasEventType.Scale: {
+      const [_, __, ...args] = evt;
+      ctx.scale(...args);
+      break;
+    }
+
+    case CanvasEventType.Translate: {
+      const [_, __, ...args] = evt;
+      ctx.translate(...args);
+      break;
+    }
+
+    case CanvasEventType.Transform: {
+      const [_, __, ...args] = evt;
+      ctx.transform(...args);
+      break;
+    }
+
+    case CanvasEventType.SetTransform: {
+      const [_, __, ...args] = evt;
+      ctx.setTransform(...args);
+      break;
+    }
+
+    case CanvasEventType.ResetTransform: {
+      ctx.resetTransform();
+      break;
+    }
+
+    case CanvasEventType.GlobalAlpha: {
+      const [_, __, ...args] = evt;
+      ctx.globalAlpha = args[0];
+      break;
+    }
+
+    case CanvasEventType.GlobalCompositeOperation: {
+      const [_, __, ...args] = evt;
+      ctx.globalCompositeOperation = args[0];
+      break;
+    }
+
+    case CanvasEventType.Filter: {
+      const [_, __, ...args] = evt;
+      ctx.filter = args[0];
+      break;
+    }
+
+    case CanvasEventType.ImageSmoothingEnabled: {
+      const [_, __, ...args] = evt;
+      ctx.imageSmoothingEnabled = args[0];
+      break;
+    }
+
+    case CanvasEventType.ImageSmoothingQuality: {
+      const [_, __, ...args] = evt;
+      ctx.imageSmoothingQuality = args[0];
+      break;
+    }
+  }
+}
+
+
+/**
+ * `ctx.reset()` is not valid on some platforms since it is fairly new.
+ * This function does the equivalent.
+ * 
+ * This function defines unambiguously the default context which client implementations
+ * can rely on to define their own local starting states.
+ *
+ * @param ctx - The context to reset
+ */
+export function resetCanvasContext(ctx: OffscreenCanvasRenderingContext2D) {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.resetTransform();
+  ctx.fillStyle = "black";
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 1;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "miter";
+  ctx.miterLimit = 10;
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
+  ctx.direction = "ltr";
+  ctx.letterSpacing = "0px";
+  ctx.fontKerning = "normal";
+  ctx.fontStretch = "normal";
+  ctx.fontVariantCaps = "normal";
+  ctx.wordSpacing = "0px";
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "rgba(0, 0, 0, 0)";
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "low";
+}
