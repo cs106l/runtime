@@ -127,7 +127,7 @@ class CanvasRegistration {
   /**
    * Whether this canvas registration has been removed.
    */
-  public removed = false;
+  private removed = false;
 
   constructor(
     public readonly context: OffscreenCanvasRenderingContext2D,
@@ -140,9 +140,18 @@ class CanvasRegistration {
   }
 
   public commit() {
+    if (this.removed) return;
+    const tmp = this.frontBuffer;
     this.frontBuffer = this.backBuffer;
+    this.backBuffer = tmp;
     this.backBuffer.length = 0;
     this.render();
+  }
+
+  public remove() {
+    if (this.removed) return;
+    this.commit();
+    this.removed = true;
   }
 
   public render() {
@@ -187,6 +196,11 @@ async function enterEventLoop(connection: CanvasConnection) {
       const globalId = getGlobalId(connection.instanceId, event[1]);
 
       if (event[0] === CanvasEventType.ConnectionClosed) {
+        /* Force commit all canvases on connection close */
+        for (const reg of contexts.values()) {
+          reg.commit();
+        }
+
         return;
       }
 
@@ -222,10 +236,9 @@ async function enterEventLoop(connection: CanvasConnection) {
 
       const registration = contexts.get(globalId);
       if (!registration) return;
-      if (registration.removed) return;
 
       if (event[0] === CanvasEventType.Remove) {
-        registration.removed = true;
+        registration.remove();
         sendMessage({ type: "removeCanvas", to: "host", globalId });
         continue;
       }

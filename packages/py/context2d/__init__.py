@@ -665,6 +665,10 @@ class Context2D:
         self.__file.write(self.__id.to_bytes(1))
         self.__file.write(data)
 
+        # Flush file on commit event
+        if event_type == 3:
+            self.__file.flush()
+
 
     def __dispatch_rect(self, event_type: int, x: float, y: float, width: float, height: float):
         self.__dispatch(event_type, 
