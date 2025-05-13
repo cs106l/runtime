@@ -142,6 +142,8 @@ class CanvasRegistration {
 
   /**
    * Whether this canvas registration has been removed.
+   * Removed canvases are still rendered and tracked (e.g. for theme updates),
+   * but will not receive any new events.
    */
   private removed = false;
 
@@ -265,6 +267,8 @@ async function enterEventLoop(connection: CanvasConnection) {
           );
 
         resetCanvasContext(context);
+        context.canvas.width = event[2];
+        context.canvas.height = event[3];
         contexts.set(globalId, new CanvasRegistration(context, response.contextId));
         continue;
       }
