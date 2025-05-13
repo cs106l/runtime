@@ -363,7 +363,7 @@ export enum CanvasEventType {
   /**
    * [roundRect](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/roundRect)
    *
-   * `[x: int16] [y: int16] [width: int16] [height: int16] [nRadii ∈ [1,2,3,4]: uint8] [radius: uint16]+`
+   * `[x: int16] [y: int16] [width: int16] [height: int16] [nRadii ∈ [1,2,3,4]: uint8] [radius: int16]+`
    */
   RoundRect = 41,
 
@@ -895,7 +895,7 @@ export function unpackCanvasEvent(chunk: ReadableChunk) {
       const nRadii = chunk.uint8();
       const radii: number[] = [];
       for (let i = 0; i < nRadii; i++) {
-        radii.push(chunk.uint16());
+        radii.push(chunk.int16());
       }
       return [type, id, x, y, width, height, radii] as const;
     }

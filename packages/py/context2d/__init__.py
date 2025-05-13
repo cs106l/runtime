@@ -113,18 +113,26 @@ _IMAGE_SMOOTHING_QUALITY = {
 }
 
 
-def _pack_string(string: str):
+def _str(string: str) -> bytes:
     return len(string).to_bytes(4) + string.encode()
 
 
-def _pack_float(value: float):
+def _f32(value: float) -> bytes:
     return pack(">f", value)
 
 
-def _pack_enum(value: str, enum: dict[str, int]):
+def _i16(value: int | float) -> bytes:
+    return round(value).to_bytes(2, signed=True)
+
+
+def _enum(value: str, enum: dict[str, int]) -> bytes:
     if value not in enum:
         raise ValueError(f"Invalid value: {value}. Valid values: {', '.join(enum.keys())}")
     return enum[value].to_bytes(1)
+
+
+def _bool(value: bool) -> bytes:
+    return b"\x01" if value else b"\x00"
 
 
 @dataclass
@@ -137,7 +145,7 @@ class CanvasGradient:
         self.__stops.append((offset, color))
 
     def _pack(self) -> bytes:
-        return pack("B", len(self.__stops)) + b"".join(_pack_float(offset) + _pack_string(color) for offset, color in self.__stops)
+        return pack("B", len(self.__stops)) + b"".join(_f32(offset) + _str(color) for offset, color in self.__stops)
 
 
 @dataclass
@@ -148,7 +156,7 @@ class _LinearGradient(CanvasGradient):
     _y1: float
 
     def _pack(self) -> bytes:
-        return super()._pack() + b"\x00" + round(self._x0).to_bytes(2) + round(self._y0).to_bytes(2) + round(self._x1).to_bytes(2) + round(self._y1).to_bytes(2)
+        return super()._pack() + b"\x00" + _i16(self._x0) + _i16(self._y0) + _i16(self._x1) + _i16(self._y1)
 
 
 @dataclass
@@ -158,7 +166,7 @@ class _ConicGradient(CanvasGradient):
     _angle: float
 
     def _pack(self) -> bytes:
-        return super()._pack() + b"\x01" + round(self._x).to_bytes(2) + round(self._y).to_bytes(2) + _pack_float(self._angle)
+        return super()._pack() + b"\x01" + _i16(self._x) + _i16(self._y) + _f32(self._angle)
     
 
 @dataclass
@@ -172,12 +180,12 @@ class _RadialGradient(CanvasGradient):
 
     def _pack(self) -> bytes:
         return (super()._pack() + b"\x02" + 
-                round(self._x0).to_bytes(2) + 
-                round(self._y0).to_bytes(2) + 
-                round(self._r0).to_bytes(2) + 
-                round(self._x1).to_bytes(2) + 
-                round(self._y1).to_bytes(2) + 
-                round(self._r1).to_bytes(2))
+                _i16(self._x0) + 
+                _i16(self._y0) + 
+                _i16(self._r0) + 
+                _i16(self._x1) + 
+                _i16(self._y1) + 
+                _i16(self._r1))
 
 
 @dataclass(repr=False)
@@ -192,7 +200,7 @@ class Context2D:
         Context2D.__next_id += 1
         if self.__id >= 256:
             raise Exception("Too many Context2D instances! A program can only have 256 Context2D instances at once")
-        self.__dispatch(0, round(width).to_bytes(2) + round(height).to_bytes(2))
+        self.__dispatch(0, _i16(width) + _i16(height))
         self.__width = width
         self.__height = height
     
@@ -208,7 +216,7 @@ class Context2D:
     def width(self, value: float):
         value = round(value)
         if value == self.__width: return
-        self.__dispatch(2, value.to_bytes(2))
+        self.__dispatch(2, _i16(value))
         self.__width = value
 
     __height: float = 150
@@ -220,7 +228,7 @@ class Context2D:
     def height(self, value: float):
         value = round(value)
         if value == self.__height: return
-        self.__dispatch(3, value.to_bytes(2))
+        self.__dispatch(3, _i16(value))
         self.__height = value
 
     def clear_rect(self, x: float, y: float, width: float, height: float):
@@ -246,7 +254,7 @@ class Context2D:
     @text_rendering.setter
     def text_rendering(self, value: str):
         if value == self.__text_rendering: return
-        self.__dispatch(9, _pack_enum(value, _TEXT_RENDERING))
+        self.__dispatch(9, _enum(value, _TEXT_RENDERING))
         self.__text_rendering = value
 
     __line_width: float = 1
@@ -257,7 +265,7 @@ class Context2D:
     @line_width.setter
     def line_width(self, value: float):
         if value == self.__line_width: return
-        self.__dispatch(10, _pack_float(value))
+        self.__dispatch(10, _f32(value))
         self.__line_width = value
 
     __line_cap: str = "butt"
@@ -268,7 +276,7 @@ class Context2D:
     @line_cap.setter
     def line_cap(self, value: str):
         if value == self.__line_cap: return
-        self.__dispatch(11, _pack_enum(value, _LINE_CAP))
+        self.__dispatch(11, _enum(value, _LINE_CAP))
         self.__line_cap = value
 
     __line_join: str = "miter"
@@ -279,7 +287,7 @@ class Context2D:
     @line_join.setter
     def line_join(self, value: str):
         if value == self.__line_join: return
-        self.__dispatch(12, _pack_enum(value, _LINE_JOIN))
+        self.__dispatch(12, _enum(value, _LINE_JOIN))
         self.__line_join = value
 
     __miter_limit: float = 10
@@ -290,7 +298,7 @@ class Context2D:
     @miter_limit.setter
     def miter_limit(self, value: float):
         if value == self.__miter_limit: return
-        self.__dispatch(13, _pack_float(value))
+        self.__dispatch(13, _f32(value))
         self.__miter_limit = value
 
     __line_dash: list[int] = field(default_factory=list)
@@ -310,7 +318,7 @@ class Context2D:
     @line_dash_offset.setter
     def line_dash_offset(self, value: float):
         if value == self.__line_dash_offset: return
-        self.__dispatch(15, _pack_float(value))
+        self.__dispatch(15, _f32(value))
         self.__line_dash_offset = value
 
     __font: str = "10px sans-serif"
@@ -321,7 +329,7 @@ class Context2D:
     @font.setter
     def font(self, value: str):
         if value == self.__font: return
-        self.__dispatch(16, _pack_string(value))
+        self.__dispatch(16, _str(value))
         self.__font = value 
 
     __text_align: str = "start"
@@ -332,7 +340,7 @@ class Context2D:
     @text_align.setter
     def text_align(self, value: str):
         if value == self.__text_align: return
-        self.__dispatch(17, _pack_enum(value, _TEXT_ALIGN))
+        self.__dispatch(17, _enum(value, _TEXT_ALIGN))
         self.__text_align = value
 
     __text_baseline: str = "alphabetic"
@@ -343,7 +351,7 @@ class Context2D:
     @text_baseline.setter
     def text_baseline(self, value: str):
         if value == self.__text_baseline: return
-        self.__dispatch(18, _pack_enum(value, _TEXT_BASELINE))
+        self.__dispatch(18, _enum(value, _TEXT_BASELINE))
         self.__text_baseline = value
 
     __direction: str = "inherit"
@@ -354,7 +362,7 @@ class Context2D:
     @direction.setter
     def direction(self, value: str):
         if value == self.__direction: return
-        self.__dispatch(19, _pack_enum(value, _DIRECTION))
+        self.__dispatch(19, _enum(value, _DIRECTION))
         self.__direction = value
     
     __letter_spacing: str = "0px"
@@ -365,7 +373,7 @@ class Context2D:
     @letter_spacing.setter
     def letter_spacing(self, value: float):
         if value == self.__letter_spacing: return
-        self.__dispatch(20, _pack_string(value))
+        self.__dispatch(20, _str(value))
         self.__letter_spacing = value
 
     __font_kerning: str = "auto"
@@ -376,7 +384,7 @@ class Context2D:
     @font_kerning.setter
     def font_kerning(self, value: str):
         if value == self.__font_kerning: return
-        self.__dispatch(21, _pack_enum(value, _FONT_KERNING))
+        self.__dispatch(21, _enum(value, _FONT_KERNING))
         self.__font_kerning = value
 
     __font_stretch: str = "normal"
@@ -387,7 +395,7 @@ class Context2D:
     @font_stretch.setter
     def font_stretch(self, value: str):
         if value == self.__font_stretch: return
-        self.__dispatch(22, _pack_enum(value, _FONT_STRETCH))
+        self.__dispatch(22, _enum(value, _FONT_STRETCH))
         self.__font_stretch = value
 
     __font_variant_caps: str = "normal"
@@ -398,7 +406,7 @@ class Context2D:
     @font_variant_caps.setter
     def font_variant_caps(self, value: str):
         if value == self.__font_variant_caps: return
-        self.__dispatch(23, _pack_enum(value, _FONT_VARIANT_CAPS))
+        self.__dispatch(23, _enum(value, _FONT_VARIANT_CAPS))
         self.__font_variant_caps = value
 
     __word_spacing: str = "0px"
@@ -409,7 +417,7 @@ class Context2D:
     @word_spacing.setter
     def word_spacing(self, value: str):
         if value == self.__word_spacing: return
-        self.__dispatch(24, _pack_string(value))
+        self.__dispatch(24, _str(value))
         self.__word_spacing = value
 
     
@@ -454,7 +462,7 @@ class Context2D:
     @shadow_blur.setter
     def shadow_blur(self, value: float):
         if value == self.__shadow_blur: return
-        self.__dispatch(27, _pack_float(value))
+        self.__dispatch(27, _f32(value))
         self.__shadow_blur = value
 
     __shadow_color: str = "#00000000"
@@ -465,7 +473,7 @@ class Context2D:
     @shadow_color.setter
     def shadow_color(self, value: str):
         if value == self.__shadow_color: return
-        self.__dispatch(28, _pack_string(value))
+        self.__dispatch(28, _str(value))
         self.__shadow_color = value
 
     __shadow_offset_x: float = 0
@@ -476,7 +484,7 @@ class Context2D:
     @shadow_offset_x.setter
     def shadow_offset_x(self, value: float):
         if value == self.__shadow_offset_x: return
-        self.__dispatch(29, _pack_float(value))
+        self.__dispatch(29, _f32(value))
         self.__shadow_offset_x = value
 
     __shadow_offset_y: float = 0
@@ -487,7 +495,7 @@ class Context2D:
     @shadow_offset_y.setter
     def shadow_offset_y(self, value: float):
         if value == self.__shadow_offset_y: return
-        self.__dispatch(30, _pack_float(value))
+        self.__dispatch(30, _f32(value))
         self.__shadow_offset_y = value
 
     
@@ -498,51 +506,55 @@ class Context2D:
         self.__dispatch(32)
 
     def move_to(self, x: float, y: float):
-        self.__dispatch(33, round(x).to_bytes(2) + round(y).to_bytes(2))
+        self.__dispatch(33, _i16(x) + _i16(y))
 
     def line_to(self, x: float, y: float):
-        self.__dispatch(34, round(x).to_bytes(2) + round(y).to_bytes(2))
+        self.__dispatch(34, _i16(x) + _i16(y))
 
     def bezier_curve_to(self, cp1x: float, cp1y: float, cp2x: float, cp2y: float, x: float, y: float):
         self.__dispatch(35, 
-                        round(cp1x).to_bytes(2) + 
-                        round(cp1y).to_bytes(2) + 
-                        round(cp2x).to_bytes(2) + 
-                        round(cp2y).to_bytes(2) + 
-                        round(x).to_bytes(2) + 
-                        round(y).to_bytes(2))
+                        _i16(cp1x) + 
+                        _i16(cp1y) + 
+                        _i16(cp2x) + 
+                        _i16(cp2y) + 
+                        _i16(x) + 
+                        _i16(y))
 
     def quadratic_curve_to(self, cpx: float, cpy: float, x: float, y: float):
-        self.__dispatch(36, round(cpx).to_bytes(2) + round(cpy).to_bytes(2) + round(x).to_bytes(2) + round(y).to_bytes(2))
+        self.__dispatch(36, 
+                        _i16(cpx) + 
+                        _i16(cpy) + 
+                        _i16(x) + 
+                        _i16(y))
 
     def arc(self, x: float, y: float, radius: float, start_angle: float, end_angle: float, counterclockwise: bool = False):
         self.__dispatch(37, 
-                        round(x).to_bytes(2) + 
-                        round(y).to_bytes(2) + 
-                        round(radius).to_bytes(2) + 
-                        _pack_float(start_angle) + 
-                        _pack_float(end_angle) + 
-                        (b"\x01" if counterclockwise else b"\x00"))
+                        _i16(x) + 
+                        _i16(y) + 
+                        _i16(radius) + 
+                        _f32(start_angle) + 
+                        _f32(end_angle) + 
+                        _bool(counterclockwise))
         
 
     def arc_to(self, x1: float, y1: float, x2: float, y2: float, radius: float):
         self.__dispatch(38, 
-                        round(x1).to_bytes(2) + 
-                        round(y1).to_bytes(2) + 
-                        round(x2).to_bytes(2) + 
-                        round(y2).to_bytes(2) + 
-                        round(radius).to_bytes(2))
+                        _i16(x1) + 
+                        _i16(y1) + 
+                        _i16(x2) + 
+                        _i16(y2) + 
+                        _i16(radius))
         
     def ellipse(self, x: float, y: float, radius_x: float, radius_y: float, rotation: float, start_angle: float, end_angle: float, counterclockwise: bool = False):
         self.__dispatch(39, 
-                        round(x).to_bytes(2) + 
-                        round(y).to_bytes(2) + 
-                        round(radius_x).to_bytes(2) + 
-                        round(radius_y).to_bytes(2) + 
-                        _pack_float(rotation) + 
-                        _pack_float(start_angle) + 
-                        _pack_float(end_angle) + 
-                        (b"\x01" if counterclockwise else b"\x00"))
+                        _i16(x) + 
+                        _i16(y) + 
+                        _i16(radius_x) + 
+                        _i16(radius_y) + 
+                        _f32(rotation) + 
+                        _f32(start_angle) + 
+                        _f32(end_angle) + 
+                        _bool(counterclockwise))
         
     def rect(self, x: float, y: float, width: float, height: float):
         self.__dispatch_rect(40, x, y, width, height)
@@ -555,30 +567,30 @@ class Context2D:
             raise ValueError("Too many radii! A round rect can specify at most 4 radii for each corner")
 
         self.__dispatch(41, 
-                        round(x).to_bytes(2) + 
-                        round(y).to_bytes(2) + 
-                        round(width).to_bytes(2) + 
-                        round(height).to_bytes(2) + 
+                        _i16(x) + 
+                        _i16(y) + 
+                        _i16(width) + 
+                        _i16(height) + 
                         len(radii).to_bytes(1) + 
-                        b"".join(round(r).to_bytes(2) for r in radii))
+                        b"".join(_i16(r) for r in radii))
         
     def fill(self, fill_rule: str = "nonzero"):
-        self.__dispatch(42, _pack_enum(fill_rule, _FILL_RULE))
+        self.__dispatch(42, _enum(fill_rule, _FILL_RULE))
 
     def stroke(self):
         self.__dispatch(43)
 
     def clip(self, fill_rule: str = "nonzero"):
-        self.__dispatch(44, _pack_enum(fill_rule, _FILL_RULE))
+        self.__dispatch(44, _enum(fill_rule, _FILL_RULE))
         
     def rotate(self, angle: float):
-        self.__dispatch(45, _pack_float(angle))
+        self.__dispatch(45, _f32(angle))
 
     def scale(self, x: float, y: float):
-        self.__dispatch(47, _pack_float(x) + _pack_float(y))
+        self.__dispatch(47, _f32(x) + _f32(y))
 
     def translate(self, x: float, y: float):
-        self.__dispatch(46, round(x).to_bytes(2) + round(y).to_bytes(2))
+        self.__dispatch(46, _i16(x) + _i16(y))
 
     def transform(self, m11: float, m12: float, m21: float, m22: float, m31: float, m32: float):
         self.__dispatch_transform(48, m11, m12, m21, m22, m31, m32)
@@ -597,7 +609,7 @@ class Context2D:
     @global_alpha.setter
     def global_alpha(self, value: float):
         if value == self.__global_alpha: return
-        self.__dispatch(51, _pack_float(value))
+        self.__dispatch(51, _f32(value))
         self.__global_alpha = value
 
     __global_composite_operation: str = "source-over"
@@ -608,7 +620,7 @@ class Context2D:
     @global_composite_operation.setter
     def global_composite_operation(self, value: str):
         if value == self.__global_composite_operation: return
-        self.__dispatch(52, _pack_enum(value, _GLOBAL_COMPOSITE_OPERATION))
+        self.__dispatch(52, _enum(value, _GLOBAL_COMPOSITE_OPERATION))
         self.__global_composite_operation = value
 
     def reset(self):
@@ -623,7 +635,7 @@ class Context2D:
     def filter(self, value: str):
         if value == self.__filter: return
         self.__filter = value
-        self.__dispatch(56, _pack_string(value))
+        self.__dispatch(56, _str(value))
 
     __image_smoothing_enabled: bool = True
 
@@ -633,7 +645,7 @@ class Context2D:
     @image_smoothing_enabled.setter
     def image_smoothing_enabled(self, value: bool):
         if value == self.__image_smoothing_enabled: return
-        self.__dispatch(59, b"\x01" if value else b"\x00")
+        self.__dispatch(59, _bool(value))
         self.__image_smoothing_enabled = value
 
     __image_smoothing_quality: str = "low"
@@ -644,7 +656,7 @@ class Context2D:
     @image_smoothing_quality.setter
     def image_smoothing_quality(self, value: str):
         if value == self.__image_smoothing_quality: return
-        self.__dispatch(60, _pack_enum(value, _IMAGE_SMOOTHING_QUALITY))
+        self.__dispatch(60, _enum(value, _IMAGE_SMOOTHING_QUALITY))
         self.__image_smoothing_quality = value
 
     def __dispatch(self, event_type: int, data: bytes = b""):
@@ -656,31 +668,31 @@ class Context2D:
 
     def __dispatch_rect(self, event_type: int, x: float, y: float, width: float, height: float):
         self.__dispatch(event_type, 
-            round(x).to_bytes(2) + 
-            round(y).to_bytes(2) + 
-            round(width).to_bytes(2) + 
-            round(height).to_bytes(2))
+            _i16(x) + 
+            _i16(y) + 
+            _i16(width) + 
+            _i16(height))
     
 
     def __dispatch_text(self, event_type: int, text: str, x: float, y: float, max_width: Optional[float] = None):
-        data = (b"\x00" if max_width is None else b"\x01") + _pack_string(text) + round(x).to_bytes(2) + round(y).to_bytes(2)
+        data = _bool(max_width is not None) + _str(text) + _i16(x) + _i16(y)
         if max_width is not None:
-            data += round(max_width).to_bytes(2)
+            data += _i16(max_width)
         self.__dispatch(event_type, data)
 
 
     def __dispatch_style(self, event_type: int, value: CanvasGradient | str):
         if isinstance(value, str):
-            data = b"\x00" + _pack_string(value)
+            data = b"\x00" + _str(value)
         else:
             data = b"\x01" + value._pack()
         self.__dispatch(event_type, data)
 
     def __dispatch_transform(self, event_type: int, m11: float, m12: float, m21: float, m22: float, m31: float, m32: float):
         self.__dispatch(event_type, 
-                        _pack_float(m11) + 
-                        _pack_float(m12) + 
-                        _pack_float(m21) + 
-                        _pack_float(m22) + 
-                        _pack_float(m31) + 
-                        _pack_float(m32))
+                        _f32(m11) + 
+                        _f32(m12) + 
+                        _f32(m21) + 
+                        _f32(m22) + 
+                        _f32(m31) + 
+                        _f32(m32))
