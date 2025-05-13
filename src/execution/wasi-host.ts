@@ -77,6 +77,8 @@ export class WASIWorkerHost {
         env: this.context.env,
         fs: this.context.fs,
         isTTY: this.context.isTTY,
+
+        canvasConnection: this.context.canvas?.connect(),
       });
     }).then((result) => {
       this.worker?.terminate();

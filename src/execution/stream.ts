@@ -452,7 +452,7 @@ export class ReadableChunk {
    */
   public constructor(
     private readonly reader: StreamReader,
-    private readonly data: Uint8Array,
+    public readonly data: Uint8Array,
     private readonly owned: boolean,
   ) {
     this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -462,7 +462,7 @@ export class ReadableChunk {
    * Mark this chunk as having been read.
    */
   public release() {
-    if (this.owned) {
+    if (!this.owned) {
       this.reader.consume(this.offset);
     }
   }
@@ -541,8 +541,8 @@ export class ReadableChunk {
   public string() {
     let view = this.bytes();
 
-    // We can't deserialize from a SharedArrayBuffer view
-    if (!this.owned) view = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    // We can't deserialize from a SharedArrayBuffer view, so we must make a copy
+    if (!this.owned) view = new Uint8Array(view);
 
     return this.decoder.decode(view);
   }
@@ -565,9 +565,11 @@ export class AsyncChunkReader {
   }
 
   public async read(): Promise<ReadableChunk> {
-    const byteLength = await this.readValue(4, (v) =>
-      new DataView(v.buffer, v.byteOffset, v.byteLength).getUint32(0),
-    );
+    const byteLength = await this.readValue(4, (v) => {
+      const ret = new DataView(v.buffer, v.byteOffset, v.byteLength).getUint32(0);
+      if (v.buffer === this.buffer) this.stream.consume(4);
+      return ret;
+    });
     const data = await this.readValue(byteLength, (v) => v);
     return new ReadableChunk(this.stream, data, data.buffer !== this.buffer);
   }

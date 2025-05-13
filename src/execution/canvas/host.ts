@@ -40,11 +40,9 @@ export abstract class CanvasHost {
    * The returned canvas should either be a brand new canvas element (which has not had `getContext` or `transferControlToOffscreen` called on it),
    * or a canvas that has been returned previously by a call to this method on the same `CanvasHost` instance (e.g. to re-use canvases).
    *
-   * @param width The width of the canvas in pixels
-   * @param height The height of the canvas in pixels
    * @returns A new HTMLCanvasElement.
    */
-  abstract createCanvas(width: number, height: number): HTMLCanvasElement;
+  abstract createCanvas(): HTMLCanvasElement;
 
   /**
    * Resizes an existing canvas element to the given width and height.
@@ -127,7 +125,8 @@ export abstract class CanvasHost {
         }
 
         case "requestCanvas": {
-          const canvas = this.createCanvas(evt.data.width, evt.data.height);
+          const canvas = this.createCanvas();
+          this.resizeCanvas(canvas, evt.data.width, evt.data.height);
           const isNew = !this.contextIdMap.has(canvas);
           const contextId = isNew ? this.nextContextId++ : this.contextIdMap.get(canvas)!;
           this.contextIdMap.set(canvas, contextId);
@@ -182,7 +181,7 @@ export class DOMCanvasHost extends CanvasHost {
     super();
   }
 
-  createCanvas(width: number, height: number): HTMLCanvasElement {
+  createCanvas(): HTMLCanvasElement {
     const stale = this.canvases.find((c) => c.stale);
     if (stale) {
       stale.stale = false;
@@ -190,8 +189,6 @@ export class DOMCanvasHost extends CanvasHost {
     }
 
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
     this.parent.appendChild(canvas);
     this.canvases.push({ canvas });
     return canvas;

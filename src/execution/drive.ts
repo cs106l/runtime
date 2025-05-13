@@ -25,6 +25,7 @@ export class VirtualDrive extends WASIDrive {
   }
 
   override write(fd: FileDescriptor, data: Uint8Array): WASISnapshotPreview1.Result {
+
     if (this.isCanvasFd(fd)) {
       if (!this.canvasWriter) return WASISnapshotPreview1.Result.SUCCESS;
 

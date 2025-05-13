@@ -117,6 +117,10 @@ def _pack_string(string: str):
     return len(string).to_bytes(4) + string.encode()
 
 
+def _pack_float(value: float):
+    return pack(">f", value)
+
+
 def _pack_enum(value: str, enum: dict[str, int]):
     if value not in enum:
         raise ValueError(f"Invalid value: {value}. Valid values: {', '.join(enum.keys())}")
@@ -133,7 +137,7 @@ class CanvasGradient:
         self.__stops.append((offset, color))
 
     def _pack(self) -> bytes:
-        return pack("B", len(self.__stops)) + b"".join(pack("f", offset) + _pack_string(color) for offset, color in self.__stops)
+        return pack("B", len(self.__stops)) + b"".join(_pack_float(offset) + _pack_string(color) for offset, color in self.__stops)
 
 
 @dataclass
@@ -154,7 +158,7 @@ class _ConicGradient(CanvasGradient):
     _angle: float
 
     def _pack(self) -> bytes:
-        return super()._pack() + b"\x01" + round(self._x).to_bytes(2) + round(self._y).to_bytes(2) + pack("f", self._angle)
+        return super()._pack() + b"\x01" + round(self._x).to_bytes(2) + round(self._y).to_bytes(2) + _pack_float(self._angle)
     
 
 @dataclass
@@ -253,7 +257,7 @@ class Context2D:
     @line_width.setter
     def line_width(self, value: float):
         if value == self.__line_width: return
-        self.__dispatch(10, pack("f", value))
+        self.__dispatch(10, _pack_float(value))
         self.__line_width = value
 
     __line_cap: str = "butt"
@@ -286,7 +290,7 @@ class Context2D:
     @miter_limit.setter
     def miter_limit(self, value: float):
         if value == self.__miter_limit: return
-        self.__dispatch(13, pack("f", value))
+        self.__dispatch(13, _pack_float(value))
         self.__miter_limit = value
 
     __line_dash: list[int] = field(default_factory=list)
@@ -306,7 +310,7 @@ class Context2D:
     @line_dash_offset.setter
     def line_dash_offset(self, value: float):
         if value == self.__line_dash_offset: return
-        self.__dispatch(15, pack("f", value))
+        self.__dispatch(15, _pack_float(value))
         self.__line_dash_offset = value
 
     __font: str = "10px sans-serif"
@@ -450,7 +454,7 @@ class Context2D:
     @shadow_blur.setter
     def shadow_blur(self, value: float):
         if value == self.__shadow_blur: return
-        self.__dispatch(27, pack("f", value))
+        self.__dispatch(27, _pack_float(value))
         self.__shadow_blur = value
 
     __shadow_color: str = "#00000000"
@@ -472,7 +476,7 @@ class Context2D:
     @shadow_offset_x.setter
     def shadow_offset_x(self, value: float):
         if value == self.__shadow_offset_x: return
-        self.__dispatch(29, pack("f", value))
+        self.__dispatch(29, _pack_float(value))
         self.__shadow_offset_x = value
 
     __shadow_offset_y: float = 0
@@ -483,7 +487,7 @@ class Context2D:
     @shadow_offset_y.setter
     def shadow_offset_y(self, value: float):
         if value == self.__shadow_offset_y: return
-        self.__dispatch(30, pack("f", value))
+        self.__dispatch(30, _pack_float(value))
         self.__shadow_offset_y = value
 
     
@@ -516,8 +520,8 @@ class Context2D:
                         round(x).to_bytes(2) + 
                         round(y).to_bytes(2) + 
                         round(radius).to_bytes(2) + 
-                        pack("f", start_angle) + 
-                        pack("f", end_angle) + 
+                        _pack_float(start_angle) + 
+                        _pack_float(end_angle) + 
                         (b"\x01" if counterclockwise else b"\x00"))
         
 
@@ -535,9 +539,9 @@ class Context2D:
                         round(y).to_bytes(2) + 
                         round(radius_x).to_bytes(2) + 
                         round(radius_y).to_bytes(2) + 
-                        pack("f", rotation) + 
-                        pack("f", start_angle) + 
-                        pack("f", end_angle) + 
+                        _pack_float(rotation) + 
+                        _pack_float(start_angle) + 
+                        _pack_float(end_angle) + 
                         (b"\x01" if counterclockwise else b"\x00"))
         
     def rect(self, x: float, y: float, width: float, height: float):
@@ -568,10 +572,10 @@ class Context2D:
         self.__dispatch(44, _pack_enum(fill_rule, _FILL_RULE))
         
     def rotate(self, angle: float):
-        self.__dispatch(45, pack("f", angle))
+        self.__dispatch(45, _pack_float(angle))
 
     def scale(self, x: float, y: float):
-        self.__dispatch(47, pack("f", x) + pack("f", y))
+        self.__dispatch(47, _pack_float(x) + _pack_float(y))
 
     def translate(self, x: float, y: float):
         self.__dispatch(46, round(x).to_bytes(2) + round(y).to_bytes(2))
@@ -593,7 +597,7 @@ class Context2D:
     @global_alpha.setter
     def global_alpha(self, value: float):
         if value == self.__global_alpha: return
-        self.__dispatch(51, pack("f", value))
+        self.__dispatch(51, _pack_float(value))
         self.__global_alpha = value
 
     __global_composite_operation: str = "source-over"
@@ -674,9 +678,9 @@ class Context2D:
 
     def __dispatch_transform(self, event_type: int, m11: float, m12: float, m21: float, m22: float, m31: float, m32: float):
         self.__dispatch(event_type, 
-                        pack("f", m11) + 
-                        pack("f", m12) + 
-                        pack("f", m21) + 
-                        pack("f", m22) + 
-                        pack("f", m31) + 
-                        pack("f", m32))
+                        _pack_float(m11) + 
+                        _pack_float(m12) + 
+                        _pack_float(m21) + 
+                        _pack_float(m22) + 
+                        _pack_float(m31) + 
+                        _pack_float(m32))
