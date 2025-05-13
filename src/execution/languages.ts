@@ -71,6 +71,17 @@ const Cpp: LanguageConfiguration = {
   ],
 };
 
+const pySiteCustomize = `
+import time
+
+def busy_sleep(seconds):
+    import time as _time
+    start = _time.perf_counter()
+    while _time.perf_counter() - start < seconds:
+        pass
+
+time.sleep = busy_sleep`;
+
 const Python: LanguageConfiguration = {
   language: Language.Python,
   filesystem: "https://runno.dev/langs/python-3.11.3.tar.gz",
@@ -78,10 +89,17 @@ const Python: LanguageConfiguration = {
   steps: [
     {
       status: RunStatus.Running,
-      run: (ctx) => ({
+      run: (ctx, prev) => ({
         binary: "https://runno.dev/langs/python-3.11.3.wasm",
         args: ["python", ctx.entrypoint],
         env: { PYTHONUNBUFFERED: "1", PYTHONPATH: "/.packages" },
+        fs: {
+          ...prev.fs,
+          "/.packages/sitecustomize.py": {
+            mode: "string",
+            content: pySiteCustomize,
+          },
+        },
       }),
     },
   ],

@@ -41,7 +41,7 @@ export type WorkerHostConfig = {
    * The file system to execute the command with.
    * Defaults to the previous filesystem in the chain if not passed.
    */
-  fs?: WASIFS;
+  fs?: Filesystem;
 };
 
 export type LanguageStep = {
@@ -209,11 +209,12 @@ export async function run(
     config.signal?.throwIfAborted();
 
     hostConfig.fs ??= prevResult.fs;
+    const fs = toWasiFS(hostConfig.fs);
 
-    const host = new WASIWorkerHost(toBinaryURL(hostConfig.fs, hostConfig.binary), {
+    const host = new WASIWorkerHost(toBinaryURL(fs, hostConfig.binary), {
       args: hostConfig.args,
       env: { ...hostConfig.env, ...config.env },
-      fs: hostConfig.fs,
+      fs,
       stdout: context.write,
       stderr: context.write,
       canvas: config.output && "canvas" in config.output ? config.output.canvas : undefined,
