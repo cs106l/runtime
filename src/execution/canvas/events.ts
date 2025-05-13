@@ -31,11 +31,18 @@ export enum CanvasEventType {
   Width = 2,
 
   /**
+   * Clears the canvas and renders all events that have been queued since the last commit.
+   * 
+   * This is used primarily to enable flicker-free animations.
+   */
+  Commit = 3,
+
+  /**
    * Sets the height of the canvas.
    *
    *  `[height: int16]`
    */
-  Height = 3,
+  Height = 4,
 
   /* Drawing rectangles */
 
@@ -44,21 +51,21 @@ export enum CanvasEventType {
    *
    *  `[x: int16] [y: int16] [width: int16] [height: int16]`
    */
-  ClearRect = 4,
+  ClearRect = 5,
 
   /**
    * [fillRect](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fillRect)
    *
    * `[x: int16] [y: int16] [width: int16] [height: int16]`
    */
-  FillRect = 5,
+  FillRect = 6,
 
   /**
    * [strokeRect](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeRect)
    *
    * `[x: int16] [y: int16] [width: int16] [height: int16]`
    */
-  StrokeRect = 6,
+  StrokeRect = 7,
 
   /* Drawing text */
 
@@ -69,7 +76,7 @@ export enum CanvasEventType {
    *  - `[0: uint8] [text: string] [x: int16] [y: int16]`
    *  - `[1: uint8] [text: string] [x: int16] [y: int16] [maxWidth: int16]`
    */
-  FillText = 7,
+  FillText = 8,
 
   /**
    * [strokeText](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeText)
@@ -78,7 +85,7 @@ export enum CanvasEventType {
    *  - `[0: uint8] [text: string] [x: int16] [y: int16]`
    *  - `[1: uint8] [text: string] [x: int16] [y: int16] [maxWidth: int16]`
    */
-  StrokeText = 8,
+  StrokeText = 9,
 
   /**
    * Sets [textRendering](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/textRendering)
@@ -89,7 +96,7 @@ export enum CanvasEventType {
    *  - optimizeLegibility  `[2: uint8]`
    *  - geometricPrecision  `[3: uint8]`
    */
-  TextRendering = 9,
+  TextRendering = 10,
 
   /* Line styles */
 
@@ -98,7 +105,7 @@ export enum CanvasEventType {
    *
    * `[lineWidth: float32]`
    */
-  LineWidth = 10,
+  LineWidth = 11,
 
   /**
    * Sets [lineCap](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineCap)
@@ -108,7 +115,7 @@ export enum CanvasEventType {
    *  - round:  `[1: uint8]`
    *  - square  `[2: uint8]`
    */
-  LineCap = 11,
+  LineCap = 12,
 
   /**
    * Sets [lineJoin](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineJoin)
@@ -118,14 +125,14 @@ export enum CanvasEventType {
    *  - bevel:  `[1: uint8]`
    *  - round:  `[2: uint8]`
    */
-  LineJoin = 12,
+  LineJoin = 13,
 
   /**
    * Sets [miterLimit](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/miterLimit)
    *
    * `[miterLimit: float32]`
    */
-  MiterLimit = 13,
+  MiterLimit = 14,
 
   /**
    * [setLineDash](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setLineDash)
@@ -135,14 +142,14 @@ export enum CanvasEventType {
    * Notes:
    *  The `dashes` byte array is treated as an array of integers, so each dash can range from 0-255, inclusive.
    */
-  SetLineDash = 14,
+  SetLineDash = 15,
 
   /**
    * Sets [lineDashOffset](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/lineDashOffset)
    *
    * `[lineDashOffset: float32]`
    */
-  LineDashOffset = 15,
+  LineDashOffset = 16,
 
   /* Text styles */
 
@@ -151,7 +158,7 @@ export enum CanvasEventType {
    *
    * `[font: string]`
    */
-  Font = 16,
+  Font = 17,
 
   /**
    * Sets [textAlign](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/textAlign)
@@ -163,7 +170,7 @@ export enum CanvasEventType {
    *  - right:    `[3: uint8]`
    *  - center:   `[4: uint8]`
    */
-  TextAlign = 17,
+  TextAlign = 18,
 
   /**
    * Sets [textBaseline](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/textBaseline)
@@ -176,7 +183,7 @@ export enum CanvasEventType {
    *  - bottom:         `[4: uint8]`
    *  - ideographic:    `[5: uint8]`
    */
-  TextBaseline = 18,
+  TextBaseline = 19,
 
   /**
    * Sets [direction](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/direction)
@@ -186,14 +193,14 @@ export enum CanvasEventType {
    *  - ltr:        `[1: uint8]`
    *  - rtl:        `[2: uint8]`
    */
-  Direction = 19,
+  Direction = 20,
 
   /**
    * Sets [letterSpacing](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/letterSpacing)
    *
    * `[letterSpacing: string]`
    */
-  LetterSpacing = 20,
+  LetterSpacing = 21,
 
   /**
    * Sets [fontKerning](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fontKerning)
@@ -203,7 +210,7 @@ export enum CanvasEventType {
    *  - normal:   `[1: uint8]`
    *  - none:     `[2: uint8]`
    */
-  FontKerning = 21,
+  FontKerning = 22,
 
   /**
    * Sets [fontStretch](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fontStretch)
@@ -219,7 +226,7 @@ export enum CanvasEventType {
    *  - extra-expanded:   `[7: uint8]`
    *  - ultra-expanded:   `[8: uint8]`
    */
-  FontStretch = 22,
+  FontStretch = 23,
 
   /**
    * Sets [fontVariantCaps](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/fontVariantCaps)
@@ -233,14 +240,14 @@ export enum CanvasEventType {
    *  - unicase:          `[5: uint8]`
    *  - titling-caps:     `[6: uint8]`
    */
-  FontVariantCaps = 23,
+  FontVariantCaps = 24,
 
   /**
    * Sets [wordSpacing](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/wordSpacing)
    *
    * `[wordSpacing: string]`
    */
-  WordSpacing = 24,
+  WordSpacing = 25,
 
   /* Fill and stroke styles */
 
@@ -251,7 +258,7 @@ export enum CanvasEventType {
    *  - `[0: uint8] [color: string]`
    *  - `[1: uint8] [grad: gradient]`
    */
-  FillStyle = 25,
+  FillStyle = 26,
 
   /**
    * Sets [strokeStyle](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/strokeStyle)
@@ -260,7 +267,7 @@ export enum CanvasEventType {
    *  - `[0: uint8] [color: string]`
    *  - `[1: uint8] [grad: gradient]`
    */
-  StrokeStyle = 26,
+  StrokeStyle = 27,
 
   /* Shadows */
 
@@ -269,103 +276,103 @@ export enum CanvasEventType {
    *
    * `[shadowBlur: float32]`
    */
-  ShadowBlur = 27,
+  ShadowBlur = 28,
 
   /**
    * Sets [shadowColor](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/shadowColor)
    *
    * `[shadowColor: string]`
    */
-  ShadowColor = 28,
+  ShadowColor = 29,
 
   /**
    * Sets [shadowOffsetX](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/shadowOffsetX)
    *
    * `[shadowOffsetX: float32]`
    */
-  ShadowOffsetX = 29,
+  ShadowOffsetX = 30,
 
   /**
    * Sets [shadowOffsetY](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/shadowOffsetY)
    *
    * `[shadowOffsetY: float32]`
    */
-  ShadowOffsetY = 30,
+  ShadowOffsetY = 31,
 
   /* Paths */
 
   /**
    * [beginPath](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/beginPath)
    */
-  BeginPath = 31,
+  BeginPath = 32,
 
   /**
    * [closePath](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/closePath)
    */
-  ClosePath = 32,
+  ClosePath = 33,
 
   /**
    * [moveTo](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/moveTo)
    *
    * `[x: int16] [y: int16]`
    */
-  MoveTo = 33,
+  MoveTo = 34,
 
   /**
    * [lineTo](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/moveTo)
    *
    * `[x: int16] [y: int16]`
    */
-  LineTo = 34,
+  LineTo = 35,
 
   /**
    * [bezierCurveTo](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/bezierCurveTo)
    *
    * `[cp1x: int16] [cp1y: int16] [cp2x: int16] [cp2y: int16] [x: int16] [y: int16]`
    */
-  BezierCurveTo = 35,
+  BezierCurveTo = 36,
 
   /**
    * [quadraticCurveTo](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/quadraticCurveTo)
    *
    * `[cpx: int16] [cpy: int16] [x: int16] [y: int16]`
    */
-  QuadraticCurveTo = 36,
+  QuadraticCurveTo = 37,
 
   /**
    * [arc](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/arc)
    *
    * `[x: int16] [y: int16] [radius: int16] [startAngle: float32] [endAngle: float32] [counterclockwise: bool]`
    */
-  Arc = 37,
+  Arc = 38,
 
   /**
    * [arcTo](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/arcTo)
    *
    * `[x1: int16] [y1: int16] [x2: int16] [y2: int16] [radius: int16]`
    */
-  ArcTo = 38,
+  ArcTo = 39,
 
   /**
    * [ellipse](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/ellipse)
    *
    * `[x: int16] [y: int16] [radiusX: int16] [radiusY: int16] [rotation: float32] [startAngle: float32] [endAngle: float32] [counterclockwise: bool]`
    */
-  Ellipse = 39,
+  Ellipse = 40,
 
   /**
    * [rect](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/rect)
    *
    * `[x: int16] [y: int16] [width: int16] [height: int16]`
    */
-  Rect = 40,
+  Rect = 41,
 
   /**
    * [roundRect](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/roundRect)
    *
    * `[x: int16] [y: int16] [width: int16] [height: int16] [nRadii ∈ [1,2,3,4]: uint8] [radius: int16]+`
    */
-  RoundRect = 41,
+  RoundRect = 42,
 
   /* Drawing paths */
 
@@ -376,12 +383,12 @@ export enum CanvasEventType {
    *  - fillRule = nonzero:   `[0: uint8]`
    *  - fillRule = evenodd:   `[1: uint8]`
    */
-  Fill = 42,
+  Fill = 43,
 
   /**
    * [stroke](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/stroke)
    */
-  Stroke = 43,
+  Stroke = 44,
 
   /**
    * [clip](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/clip)
@@ -390,7 +397,7 @@ export enum CanvasEventType {
    *  - fillRule = nonzero:   `[0: uint8]`
    *  - fillRule = evenodd:   `[1: uint8]`
    */
-  Clip = 44,
+  Clip = 45,
 
   /* Transformations */
 
@@ -399,40 +406,40 @@ export enum CanvasEventType {
    *
    * `[angle: float32]`
    */
-  Rotate = 45,
+  Rotate = 46,
 
   /**
    * [scale](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/scale)
    *
    * `[x: float32] [y: float32]`
    */
-  Scale = 46,
+  Scale = 47,
 
   /**
    * [translate](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/translate)
    *
    * `[x: float32] [y: float32]`
    */
-  Translate = 47,
+  Translate = 48,
 
   /**
    * [transform](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/transform)
    *
    * `[m11: float32] [m12: float32] [m21: float32] [m22: float32] [m31: float32] [m32: float32]`
    */
-  Transform = 48,
+  Transform = 49,
 
   /**
    * [setTransform](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/setTransform)
    *
    * `[m11: float32] [m12: float32] [m21: float32] [m22: float32] [m31: float32] [m32: float32]`
    */
-  SetTransform = 49,
+  SetTransform = 50,
 
   /**
    * [resetTransform](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/resetTransform)
    */
-  ResetTransform = 50,
+  ResetTransform = 51,
 
   /* Compositing */
 
@@ -441,7 +448,7 @@ export enum CanvasEventType {
    *
    * `[globalAlpha: float32]`
    */
-  GlobalAlpha = 51,
+  GlobalAlpha = 52,
 
   /**
    * Sets [globalCompositeOperation](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation)
@@ -474,35 +481,7 @@ export enum CanvasEventType {
    *  - color:            `[24: uint8]`
    *  - luminosity:       `[25: uint8]`
    */
-  GlobalCompositeOperation = 52,
-
-  /* Canvas State */
-  /**
-   * These methods are intentionally disabled since they require keeping track of the
-   * previous external state of the canvas, which is inconvenient for client implementations to do
-   * correctly.
-   *
-   * They may be implemented at some point, but for now, the best way is to simply call `clearRect`
-   * to clear the canvas before drawing.
-   */
-
-  /**
-   * [save](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/save)
-   */
-  // Save = 53,
-
-  /**
-   * [restore](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/restore)
-   */
-  // Restore = 54,
-
-  /**
-   * [reset](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/reset)
-   *
-   * This operation differs from the normal RenderingContext2D: it merely clears the canvas screen!
-   * It doesn't affect the canvas state at all.
-   */
-  Reset = 55,
+  GlobalCompositeOperation = 53,
 
   /* Filters */
 
@@ -511,7 +490,7 @@ export enum CanvasEventType {
    *
    * `[filter: string]`
    */
-  Filter = 56,
+  Filter = 54,
 
   /* Drawing images */
 
@@ -531,7 +510,7 @@ export enum CanvasEventType {
    *    for example, "png" or "jpeg"
    * - `data` is the raw binary of the image
    */
-  CreateImage = 57,
+  CreateImage = 55,
 
   /**
    * [drawImage](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage)
@@ -543,14 +522,14 @@ export enum CanvasEventType {
    *  - `[1: uint8] [id: uint16] [dx: int16] [dy: int16] [dWidth: int16] [dHeight: int16]`
    *  - `[2: uint8] [id: uint16] [sx: int16] [sy: int16] [sWidth: int16] [sHeight: int16] [dx: int16] [dy: int16] [dWidth: int16] [dHeight: int16]`
    */
-  DrawImage = 58,
+  DrawImage = 56,
 
   /**
    * Sets [imageSmoothingEnabled](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvasRenderingContext2D)
    *
    * `[imageSmoothingEnabled: bool]`
    */
-  ImageSmoothingEnabled = 59,
+  ImageSmoothingEnabled = 57,
 
   /**
    * Sets [imageSmoothingQuality](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingQuality)
@@ -560,13 +539,13 @@ export enum CanvasEventType {
    *  - medium: `[1: uint8]`
    *  - high:   `[2: uint8]`
    */
-  ImageSmoothingQuality = 60,
+  ImageSmoothingQuality = 58,
 
   /**
    * Closes the event stream between the running program and the renderer thread.
    * After this message is received, no more messages will be sent and the connection may be closed.
    */
-  ConnectionClosed = 61,
+  ConnectionClosed = 59,
 }
 
 export enum GradientType {
@@ -682,6 +661,9 @@ export function unpackCanvasEvent(chunk: ReadableChunk) {
       return [type, id, chunk.int16(), chunk.int16()] as const;
 
     case CanvasEventType.Remove:
+      return [type, id] as const;
+
+    case CanvasEventType.Commit:
       return [type, id] as const;
 
     case CanvasEventType.Width:
@@ -935,11 +917,6 @@ export function unpackCanvasEvent(chunk: ReadableChunk) {
 
     case CanvasEventType.GlobalCompositeOperation:
       return [type, id, globalCompositeOperation[chunk.uint8()]] as const;
-
-    // case CanvasEventType.Save:
-    // case CanvasEventType.Restore:
-    case CanvasEventType.Reset:
-      return [type, id] as const;
 
     case CanvasEventType.Filter:
       return [type, id, chunk.string()] as const;

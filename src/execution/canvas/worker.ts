@@ -111,12 +111,45 @@ onmessage = async function (evt: MessageEvent<IncomingMessage>) {
   }
 };
 
-type CanvasRegistration = {
-  context: OffscreenCanvasRenderingContext2D;
-  contextId: number;
-  eventLog: CanvasEvent[];
-  removed?: boolean;
-};
+class CanvasRegistration {
+  /**
+   * Events that have been emitted but not yet rendered.
+   * Commiting will move these to the front buffer.
+   */
+  private backBuffer: CanvasEvent[] = [];
+
+  /**
+   * Events that have been rendered.
+   * At any point in time, replaying the front buffer will produce the same results as what is currently rendered on screen.
+   */
+  private frontBuffer: CanvasEvent[] = [];
+
+  /**
+   * Whether this canvas registration has been removed.
+   */
+  public removed = false;
+
+  constructor(
+    public readonly context: OffscreenCanvasRenderingContext2D,
+    public readonly contextId: number,
+  ) {}
+
+  public onEvent(evt: CanvasEvent) {
+    if (this.removed) return;
+    this.backBuffer.push(evt);
+  }
+
+  public commit() {
+    this.frontBuffer = this.backBuffer;
+    this.backBuffer.length = 0;
+    this.render();
+  }
+
+  public render() {
+    this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
+    this.frontBuffer.forEach((evt) => applyEvent(this.context, evt, true));
+  }
+}
 
 class CanvasTheme {
   public colorMap: Record<string, string>;
@@ -140,8 +173,7 @@ function handleTheme(colorMap: Record<string, string>) {
   theme.colorMap = colorMap;
 
   for (const reg of contexts.values()) {
-    reg.context.clearRect(0, 0, reg.context.canvas.width, reg.context.canvas.height);
-    reg.eventLog.forEach((evt) => applyEvent(reg, evt, true));
+    reg.render();
   }
 }
 
@@ -184,7 +216,7 @@ async function enterEventLoop(connection: CanvasConnection) {
           );
 
         resetContext(context);
-        contexts.set(globalId, { context, contextId: response.contextId, eventLog: [] });
+        contexts.set(globalId, new CanvasRegistration(context, response.contextId));
         continue;
       }
 
@@ -198,14 +230,8 @@ async function enterEventLoop(connection: CanvasConnection) {
         continue;
       }
 
-      if (event[0] === CanvasEventType.Reset) {
-        registration.context.clearRect(
-          0,
-          0,
-          registration.context.canvas.width,
-          registration.context.canvas.height,
-        );
-        registration.eventLog.length = 0;
+      if (event[0] === CanvasEventType.Commit) {
+        registration.commit();
         continue;
       }
 
@@ -233,7 +259,7 @@ async function enterEventLoop(connection: CanvasConnection) {
         continue;
       }
 
-      applyEvent(registration, event);
+      registration.onEvent(event);
     } catch (err: unknown) {
       handleError(err);
     } finally {
@@ -279,10 +305,7 @@ function resetContext(ctx: OffscreenCanvasRenderingContext2D) {
   ctx.imageSmoothingQuality = "low";
 }
 
-function applyEvent(reg: CanvasRegistration, evt: CanvasEvent, replay?: boolean) {
-  if (!replay) reg.eventLog.push(evt);
-  const ctx = reg.context;
-
+function applyEvent(ctx: OffscreenCanvasRenderingContext2D, evt: CanvasEvent, replay?: boolean) {
   switch (evt[0]) {
     case CanvasEventType.ClearRect: {
       const [_, __, ...args] = evt;
