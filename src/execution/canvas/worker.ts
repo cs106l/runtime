@@ -183,13 +183,9 @@ class CanvasRegistration {
     this.commit();
     this.removed = true;
   }
-
-  public themeChanged() {
+    
+  public render() {
     this.themeBuffer.forEach((evt) => applyEventToContext(this.context, evt, theme));
-    this.render();
-  }
-
-  private render() {
     this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
     this.frontBuffer.forEach((evt) => applyEventToContext(this.context, evt, theme));
   }
@@ -214,7 +210,7 @@ function handleTheme(colorMap: Record<string, string>) {
   theme.colorMap = colorMap;
 
   for (const reg of contexts.values()) {
-    reg.themeChanged();
+    reg.render();
   }
 }
 
