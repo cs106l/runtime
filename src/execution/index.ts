@@ -21,7 +21,6 @@ export type ExecutionContext = {
   entryname: string;
   entrypoint: string;
   packages: PackageWorkspace;
-  write: WriteFn;
 };
 
 export type WorkerHostConfig = {
@@ -36,12 +35,6 @@ export type WorkerHostConfig = {
 
   /** The environment to launch the binary with */
   env?: Record<string, string>;
-
-  /**
-   * The file system to execute the command with.
-   * Defaults to the previous filesystem in the chain if not passed.
-   */
-  fs?: Filesystem;
 };
 
 export type LanguageStep = {
@@ -66,7 +59,13 @@ export type LanguageConfiguration = {
   language: Language;
 
   /** An optional URL to a .tar.gz containing the initial contents of the filesystem for this language */
-  filesystem?: string;
+  tarGz?: string;
+
+  /**
+   * Any additional files to supplement the chain of commands
+   */
+  files?: Filesystem;
+
   steps: [LanguageStep, ...LanguageStep[]];
   packages: PackageManager;
 };
@@ -103,22 +102,6 @@ export type BinaryFile = {
   content: Uint8Array;
 };
 
-function toWasiFS(fs: Filesystem): WASIFS {
-  const result: WASIFS = {};
-  for (const [path, entry] of Object.entries(fs)) {
-    result[path] = {
-      ...entry,
-      path,
-      timestamps: entry.timestamps ?? {
-        access: new Date(),
-        modification: new Date(),
-        change: new Date(),
-      },
-    };
-  }
-  return result;
-}
-
 export type WriteFn = (data: string) => void;
 
 export type OutputConfig = {
@@ -139,7 +122,7 @@ export type RunConfig = {
   onStatusChanged?: (status: RunStatus) => void;
   onWorkerCreated?: (host: WorkerHost) => void;
   output?: WriteFn | OutputConfig;
-  packages?: PackageWorkspace | PackageRef[];
+  packages?: readonly PackageRef[];
   files?: Filesystem;
   env?: Record<string, string>;
   entrypoint?: string;
@@ -162,129 +145,39 @@ export async function run(
   config?: RunConfig,
 ): Promise<WASIExecutionResult> {
   config ??= {};
-  config.onStatusChanged?.(RunStatus.Installing);
 
-  const langConfig = LanguagesConfig[language];
-  const context = await createContext(langConfig, config);
-  config.signal?.throwIfAborted();
+  const write = config.output && "write" in config.output ? config.output.write : undefined;
 
-  let vfs: WASIFS = {};
-
-  /* Load base filesystem */
-  if (langConfig.filesystem) {
-    const filesystem = await fetchWASIFS(langConfig.filesystem, config);
-    vfs = { ...vfs, ...filesystem };
-  }
-
-  /* Download packages */
-  const filesystem = await context.packages.build(config.signal);
-  vfs = { ...vfs, ...filesystem };
-
-  /* User files */
-  if (config.files) vfs = { ...vfs, ...toWasiFS(config.files) };
-
-  /* Place user code at entrypoint file */
-  vfs = {
-    ...vfs,
-    [context.entrypoint]: {
-      path: context.entrypoint,
-      content: `${context.packages.prefixCode(vfs)}${code}${context.packages.postfixCode(vfs)}`,
-      mode: "string",
-      timestamps: {
-        access: new Date(),
-        modification: new Date(),
-        change: new Date(),
-      },
+  const host = new WASIWorkerHost({
+    core: {
+      language,
+      code,
+      files: config.files ?? {},
+      packages: config.packages ?? [],
+      env: config.env ?? {},
+      entrypoint: config.entrypoint ?? "/program",
     },
-  };
+    
+    status: config.onStatusChanged,
+    stdout: write,
+    stderr: write,
+    canvas: config.output && "canvas" in config.output ? config.output.canvas : undefined,
+  });
 
-  /* Run steps to execute code */
-  let prevResult: WASIExecutionResult = { exitCode: 0, fs: vfs };
-  for (const step of langConfig.steps) {
-    config.onStatusChanged?.(step.status);
+  config.onWorkerCreated?.(host);
+  const onAbort = () => host.kill();
+  config.signal?.addEventListener("abort", onAbort);
 
-    let hostConfig: WorkerHostConfig;
-    if (typeof step.run === "function") hostConfig = await step.run(context, prevResult);
-    else hostConfig = { ...step.run };
+  try {
+    return await host.start();
+  } catch (e) {
+    if (!(e instanceof WASIWorkerHostKilledError)) throw e;
+  } finally {
+    config.signal?.removeEventListener("abort", onAbort);
     config.signal?.throwIfAborted();
-
-    hostConfig.fs ??= prevResult.fs;
-    const fs = toWasiFS(hostConfig.fs);
-
-    const host = new WASIWorkerHost(toBinaryURL(fs, hostConfig.binary), {
-      args: hostConfig.args,
-      env: { ...hostConfig.env, ...config.env },
-      fs,
-      stdout: context.write,
-      stderr: context.write,
-      canvas: config.output && "canvas" in config.output ? config.output.canvas : undefined,
-    });
-
-    config.onWorkerCreated?.(host);
-    const onAbort = () => host.kill();
-    config.signal?.throwIfAborted();
-    config.signal?.addEventListener("abort", onAbort, { once: true });
-
-    try {
-      prevResult = await host.start();
-    } catch (e) {
-      if (!(e instanceof WASIWorkerHostKilledError)) throw e;
-    } finally {
-      config.signal?.removeEventListener("abort", onAbort);
-      config.signal?.throwIfAborted();
-    }
-
-    if (prevResult.exitCode !== 0) return prevResult;
   }
 
-  return prevResult;
-}
-
-async function createContext(
-  langConfig: LanguageConfiguration,
-  config: RunConfig,
-): Promise<ExecutionContext> {
-  let write: WriteFn;
-  let output = config.output ?? {};
-
-  if (typeof output === "function") write = output;
-  else write = output.write ?? (() => {});
-
-  let packages: PackageWorkspace;
-  const pm = langConfig.packages;
-
-  if (config.packages) {
-    if (Array.isArray(config.packages)) {
-      packages = pm.createWorkspace();
-      await packages.install(...config.packages);
-    } else packages = config.packages;
-  } else packages = pm.createWorkspace();
-
-  const entrypoint = config.entrypoint ?? "/program";
-  const entryname = getFileNameWithoutExtension(entrypoint);
-
-  return { entryname, entrypoint, write, packages };
-}
-
-function getFileNameWithoutExtension(path: string) {
-  const cleanPath = path.trim().replace(/\/+$/, "");
-  const file = cleanPath.split("/").pop()!.trim();
-  const parts = file.split(".");
-  if (parts.length === 1) return parts[0];
-  return parts.slice(0, -1).join(".");
-}
-
-function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
-  if (typeof binary === "string" && !binary.startsWith("/")) return binary;
-
-  let file: WASIFile;
-  if (typeof binary === "object") file = binary;
-  else {
-    file = fs[binary];
-    if (!file) throw new Error(`Missing binary file expected in filesystem at ${binary}`);
-  }
-
-  return URL.createObjectURL(new Blob([file.content], { type: "application/wasm" }));
+  throw new Error("unexpected error");
 }
 
 export function configure(language: Language): LanguageConfiguration {

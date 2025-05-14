@@ -1,15 +1,30 @@
-import { WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
-import type { CrashHostMessage, HostMessage, WorkerMessage } from "./wasi-worker";
+import { WASIExecutionResult } from "@cs106l/wasi";
+import type { CrashHostMessage, WorkerToHostMessage, HostToWorkerMessage } from "./wasi-worker";
 
 import WASIWorker from "./wasi-worker?worker&inline";
 import { CanvasHost } from "./canvas/host";
+import { Language, RunStatus } from "../enums";
+import { PackageRef } from "../packages";
+import { Filesystem } from ".";
 
-function sendMessage(worker: Worker, message: WorkerMessage, transfer?: Transferable[]) {
+function sendMessage(worker: Worker, message: HostToWorkerMessage, transfer?: Transferable[]) {
   worker.postMessage(message, transfer ?? []);
 }
 
-type WASIWorkerHostContext = Partial<Omit<WASIContextOptions, "stdin" | "fs">> & {
-  fs: WASIFS;
+export type WASIHostCoreContext = {
+  language: Language;
+  code: string;
+  files: Filesystem;
+  packages: readonly PackageRef[];
+  env: Record<string, string>;
+  entrypoint: string;
+};
+
+export type WASIHostContext = {
+  core: WASIHostCoreContext;
+  stdout?: (text: string) => void;
+  stderr?: (text: string) => void;
+  status?: (status: RunStatus) => void;
   canvas?: CanvasHost;
 };
 
@@ -22,34 +37,32 @@ export class WASIWorkerCrashedError extends Error {
 }
 
 export class WASIWorkerHost {
-  binaryURL: string;
-
   // 8kb should be big enough
-  stdinBuffer: SharedArrayBuffer = new SharedArrayBuffer(8 * 1024);
+  private stdinBuffer: SharedArrayBuffer = new SharedArrayBuffer(8 * 1024);
 
-  context: WASIWorkerHostContext;
+  private result?: Promise<WASIExecutionResult>;
+  private worker?: Worker;
+  private reject?: (reason?: unknown) => void;
 
-  result?: Promise<WASIExecutionResult>;
-  worker?: Worker;
-  reject?: (reason?: unknown) => void;
-
-  constructor(binaryURL: string, context: WASIWorkerHostContext) {
-    this.binaryURL = binaryURL;
-    this.context = context;
-  }
+  constructor(private context: WASIHostContext) {}
 
   async start() {
     if (this.result) {
       throw new Error("WASIWorker Host can only be started once");
     }
 
+    this.context.status?.(RunStatus.Installing);
+
     this.result = new Promise<WASIExecutionResult>((resolve, reject) => {
       this.reject = reject;
       this.worker = new WASIWorker();
 
       this.worker.addEventListener("message", (messageEvent) => {
-        const message: HostMessage = messageEvent.data;
+        const message: WorkerToHostMessage = messageEvent.data;
         switch (message.type) {
+          case "status":
+            this.context.status?.(message.status);
+            break;
           case "stdout":
             this.context.stdout?.(message.text);
             break;
@@ -68,16 +81,8 @@ export class WASIWorkerHost {
       sendMessage(this.worker, {
         target: "client",
         type: "start",
-        binaryURL: this.binaryURL,
+        core: this.context.core,
         stdinBuffer: this.stdinBuffer,
-
-        // Unfortunately can't just splat these because it includes types
-        // that can't be sent as a message.
-        args: this.context.args,
-        env: this.context.env,
-        fs: this.context.fs,
-        isTTY: this.context.isTTY,
-
         canvasConnection: this.context.canvas?.connect(),
       });
     }).then((result) => {
@@ -89,9 +94,7 @@ export class WASIWorkerHost {
   }
 
   kill() {
-    if (!this.worker) {
-      throw new Error("WASIWorker has not started");
-    }
+    if (!this.worker) throw new Error("WASIWorker has not started");
     this.worker.terminate();
     this.reject?.(new WASIWorkerHostKilledError("WASI Worker was killed"));
   }

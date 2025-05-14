@@ -4,44 +4,26 @@ import { StreamWriter } from "./stream";
 import { CanvasConnection } from "./canvas/host";
 import { CanvasEventType } from "./canvas/events";
 
-
-export class VirtualDrive extends WASIDrive {
-
+export class DriveConnection {
   private canvasWriter?: StreamWriter;
 
-  constructor(fs: WASIFS, canvasConnection?: CanvasConnection) {
-    super(fs ?? {});
-    
+  constructor(canvasConnection?: CanvasConnection) {
     if (canvasConnection) {
       this.canvasWriter = new StreamWriter(canvasConnection.eventBuffer);
     }
   }
 
-  private isCanvasFd(fd: FileDescriptor): boolean {
-    const file = this.openMap.get(fd);
-    if (!file) return false;
-    const path = file.stat().path;
-    return path === "/dev/canvas";
-  }
+  writeCanvasData(data: Uint8Array) {
+    if (!this.canvasWriter) return;
 
-  override write(fd: FileDescriptor, data: Uint8Array): WASISnapshotPreview1.Result {
-
-    if (this.isCanvasFd(fd)) {
-      if (!this.canvasWriter) return WASISnapshotPreview1.Result.SUCCESS;
-
-      while (data.length > 0) {
-        const available = this.canvasWriter.reserve(data.length, true);
-        if (!available) continue;
-        const writeLength = Math.min(available.data.length, data.length);
-        available.data.set(data.subarray(0, writeLength));
-        available.commit();
-        data = data.subarray(writeLength);
-      }
-
-      return WASISnapshotPreview1.Result.SUCCESS;
+    while (data.length > 0) {
+      const available = this.canvasWriter.reserve(data.length, true);
+      if (!available) continue;
+      const writeLength = Math.min(available.data.length, data.length);
+      available.data.set(data.subarray(0, writeLength));
+      available.commit();
+      data = data.subarray(writeLength);
     }
-
-    return super.write(fd, data);
   }
 
   disconnect() {
@@ -60,5 +42,29 @@ export class VirtualDrive extends WASIDrive {
       res.data.set(message);
       res.commit();
     }
+  }
+}
+
+export class VirtualDrive extends WASIDrive {
+
+  constructor(fs: WASIFS, private connection: DriveConnection) {
+    super(fs ?? {});
+  }
+
+  private isCanvasFd(fd: FileDescriptor): boolean {
+    const file = this.openMap.get(fd);
+    if (!file) return false;
+    const path = file.stat().path;
+    return path === "/dev/canvas";
+  }
+
+  override write(fd: FileDescriptor, data: Uint8Array): WASISnapshotPreview1.Result {
+
+    if (this.isCanvasFd(fd)) {
+      this.connection.writeCanvasData(data);
+      return WASISnapshotPreview1.Result.SUCCESS;
+    }
+
+    return super.write(fd, data);
   }
 }

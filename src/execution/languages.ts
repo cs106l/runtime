@@ -5,7 +5,7 @@ import { PackageManager } from "../packages";
 
 const Cpp: LanguageConfiguration = {
   language: Language.Cpp,
-  filesystem: "https://runno.dev/langs/clang-fs.tar.gz",
+  tarGz: "https://runno.dev/langs/clang-fs.tar.gz",
   packages: new PackageManager(new BaseRegistry(Language.Cpp)),
   steps: [
     {
@@ -84,22 +84,21 @@ time.sleep = busy_sleep`;
 
 const Python: LanguageConfiguration = {
   language: Language.Python,
-  filesystem: "https://runno.dev/langs/python-3.11.3.tar.gz",
+  tarGz: "https://runno.dev/langs/python-3.11.3.tar.gz",
   packages: new PackageManager(new BaseRegistry(Language.Python)),
+  files: {
+    "/.packages/sitecustomize.py": {
+      mode: "string",
+      content: pySiteCustomize,
+    },
+  },
   steps: [
     {
       status: RunStatus.Running,
-      run: (ctx, prev) => ({
+      run: (ctx) => ({
         binary: "https://runno.dev/langs/python-3.11.3.wasm",
         args: ["python", ctx.entrypoint],
         env: { PYTHONUNBUFFERED: "1", PYTHONPATH: "/.packages" },
-        fs: {
-          ...prev.fs,
-          "/.packages/sitecustomize.py": {
-            mode: "string",
-            content: pySiteCustomize,
-          },
-        },
       }),
     },
   ],

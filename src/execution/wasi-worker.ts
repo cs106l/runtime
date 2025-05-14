@@ -1,17 +1,25 @@
-import { WASI, WASIContextOptions, WASIExecutionResult, WASIFS } from "@cs106l/wasi";
+import { WASI, WASIExecutionResult, WASIFile, WASIFS } from "@cs106l/wasi";
 import { CanvasConnection } from "./canvas/host";
-import { VirtualDrive } from "./drive";
+import { DriveConnection, VirtualDrive } from "./drive";
+import { RunStatus } from "../enums";
+import { LanguagesConfig } from "./languages";
+import { ExecutionContext, Filesystem, LanguageConfiguration, WorkerHostConfig } from ".";
+import { WASIHostCoreContext } from "./wasi-host";
+import { fetchWASIFS } from "../utils";
 
 type StartWorkerMessage = {
   target: "client";
   type: "start";
-  binaryURL: string;
+  core: WASIHostCoreContext;
   stdinBuffer: SharedArrayBuffer;
-  fs: WASIFS;
   canvasConnection?: CanvasConnection;
-} & Partial<Omit<WASIContextOptions, "stdin" | "stdout" | "stderr" | "debug" | "fs">>;
+};
 
-export type WorkerMessage = StartWorkerMessage;
+type StatusMessage = {
+  target: "host";
+  type: "status";
+  status: RunStatus;
+};
 
 type StdoutHostMessage = {
   target: "host";
@@ -41,20 +49,23 @@ export type CrashHostMessage = {
   };
 };
 
-export type HostMessage =
+export type HostToWorkerMessage = StartWorkerMessage;
+
+export type WorkerToHostMessage =
+  | StatusMessage
   | StdoutHostMessage
   | StderrHostMessage
   | ResultHostMessage
   | CrashHostMessage;
 
 onmessage = async (ev: MessageEvent) => {
-  const data = ev.data as WorkerMessage;
+  const data = ev.data as HostToWorkerMessage;
 
   switch (data.type) {
     case "start":
-      const drive = new VirtualDrive(data.fs, data.canvasConnection);
+      const connection = new DriveConnection(data.canvasConnection);
       try {
-        const result = await start(data, drive);
+        const result = await start(data, connection);
         sendMessage({
           target: "host",
           type: "result",
@@ -70,7 +81,7 @@ onmessage = async (ev: MessageEvent) => {
           };
         } else {
           error = {
-            message: String(e)
+            message: String(e),
           };
         }
         sendMessage({
@@ -79,24 +90,86 @@ onmessage = async (ev: MessageEvent) => {
           error,
         });
       } finally {
-        drive.disconnect();
+        connection.disconnect();
       }
       break;
   }
 };
 
-function sendMessage(message: HostMessage) {
+function sendMessage(message: WorkerToHostMessage) {
   postMessage(message);
 }
 
-async function start(message: StartWorkerMessage, drive: VirtualDrive) {
-  return WASI.start(fetch(message.binaryURL), {
-    ...message,
-    stdout: sendStdout,
-    stderr: sendStderr,
-    stdin: (maxByteLength) => getStdin(maxByteLength, message.stdinBuffer),
-    fs: drive
+function onStatusChanged(status: RunStatus) {
+  sendMessage({
+    target: "host",
+    type: "status",
+    status,
   });
+}
+
+async function start(msg: StartWorkerMessage, cxn: DriveConnection) {
+  const langConfig = LanguagesConfig[msg.core.language];
+  const context = await createContext(langConfig, msg.core);
+
+  let vfs: WASIFS = {};
+
+  /* Load base filesystem */
+  if (langConfig.tarGz) {
+    const filesystem = await fetchWASIFS(langConfig.tarGz);
+    vfs = { ...vfs, ...filesystem };
+  }
+
+  /* Add supplemental files */
+  if (langConfig.files) vfs = { ...vfs, ...toWasiFS(langConfig.files) };
+
+  /* Download packages */
+  const filesystem = await context.packages.build();
+  vfs = { ...vfs, ...filesystem };
+
+  /* User files */
+  vfs = { ...vfs, ...toWasiFS(msg.core.files) };
+
+  /* Place user code at entrypoint file */
+  vfs = {
+    ...vfs,
+    [context.entrypoint]: {
+      path: context.entrypoint,
+      content: `${context.packages.prefixCode(vfs)}${msg.core.code}${context.packages.postfixCode(
+        vfs,
+      )}`,
+      mode: "string",
+      timestamps: {
+        access: new Date(),
+        modification: new Date(),
+        change: new Date(),
+      },
+    },
+  };
+
+  const drive = new VirtualDrive(vfs, cxn);
+
+  /* Run steps to execute code */
+  let prevResult: WASIExecutionResult = { exitCode: 0, fs: vfs };
+  for (const step of langConfig.steps) {
+    onStatusChanged(step.status);
+
+    let hostConfig: WorkerHostConfig;
+    if (typeof step.run === "function") hostConfig = await step.run(context, prevResult);
+    else hostConfig = { ...step.run };
+
+    const binaryURL = toBinaryURL(drive.fs, hostConfig.binary);
+    prevResult = await WASI.start(fetch(binaryURL), {
+      fs: drive,
+      args: hostConfig.args,
+      env: { ...hostConfig.env, ...msg.core.env },
+      stdout: sendStdout,
+      stderr: sendStderr,
+      stdin: (maxByteLength) => getStdin(maxByteLength, msg.stdinBuffer),
+    });
+  }
+
+  return prevResult;
 }
 
 function sendStdout(out: string) {
@@ -138,4 +211,55 @@ function getStdin(maxByteLength: number, stdinBuffer: SharedArrayBuffer): string
   buffer.set(remaining);
 
   return returnValue;
+}
+
+async function createContext(
+  langConfig: LanguageConfiguration,
+  core: WASIHostCoreContext,
+): Promise<ExecutionContext> {
+  const pm = langConfig.packages;
+  const packages = pm.createWorkspace();
+  await packages.install(...core.packages);
+
+  const entrypoint = core.entrypoint;
+  const entryname = getFileNameWithoutExtension(entrypoint);
+
+  return { entryname, entrypoint, packages };
+}
+
+function getFileNameWithoutExtension(path: string) {
+  const cleanPath = path.trim().replace(/\/+$/, "");
+  const file = cleanPath.split("/").pop()!.trim();
+  const parts = file.split(".");
+  if (parts.length === 1) return parts[0];
+  return parts.slice(0, -1).join(".");
+}
+
+function toWasiFS(fs: Filesystem): WASIFS {
+  const result: WASIFS = {};
+  for (const [path, entry] of Object.entries(fs)) {
+    result[path] = {
+      ...entry,
+      path,
+      timestamps: entry.timestamps ?? {
+        access: new Date(),
+        modification: new Date(),
+        change: new Date(),
+      },
+    };
+  }
+  return result;
+}
+
+function toBinaryURL(fs: WASIFS, binary: WorkerHostConfig["binary"]): string {
+  if (typeof binary === "string" && !binary.startsWith("/")) return binary;
+
+  let file: WASIFile;
+  if (typeof binary === "object") file = binary;
+  else {
+    file = fs[binary];
+    if (!file) throw new Error(`Missing binary file expected in filesystem at ${binary}`);
+  }
+
+  return URL.createObjectURL(new Blob([file.content], { type: "application/wasm" }));
 }
