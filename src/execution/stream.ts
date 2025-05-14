@@ -536,13 +536,12 @@ export class ReadableChunk {
 
 /**
  * Reads chunks from a stream asynchronously.
+ * A chunk is a block of 0 or more bytes prefixed with a Big-endian u32 representing its byte length
  */
 export class AsyncChunkReader {
   private readonly lock: AsyncLock;
   private readonly stream: StreamReader;
   private readonly scratch = new ScratchBuffer();
-
-  private isAsyncReading = false;
 
   /**
    * The current block we are reading. This must be fully
@@ -554,7 +553,7 @@ export class AsyncChunkReader {
    * The number of bytes requested.
    * This is the number of bytes we will consume from the stream when we are done reading the block.
    */
-  private requestSize: number = 0;
+  private blockSize: number = 0;
 
   constructor(private buffer: SharedArrayBuffer, strategy?: LockStrategy) {
     strategy ??= LockStrategy.busy;
@@ -569,54 +568,42 @@ export class AsyncChunkReader {
     return await this.readValue(byteLength, (v) => new ReadableChunk(v, v.buffer !== this.buffer));
   }
 
-  private requestBlock(): void | Promise<void> {
-    if (this.block.length === 0) {
-      return (async () => {
-        this.stream.consume(this.requestSize);
+  private async requestBlock(): Promise<void> {
+    if (this.block.length !== 0)
+      throw new Error("Can't request new block while old one still active");
+    this.stream.consume(this.blockSize);
 
-        let view: Uint8Array = this.stream.valid();
+    let view: Uint8Array = this.stream.valid();
 
-        if (view.length === 0) {
-          this.lock.reset();
-          while (view.length === 0) {
-            await this.lock.spin();
-            view = this.stream.valid();
-          }
-        }
-
-        this.block = view;
-        this.requestSize = this.block.length;
-      })();
+    if (view.length === 0) {
+      this.lock.reset();
+      while (view.length === 0) {
+        await this.lock.spin();
+        view = this.stream.valid();
+      }
     }
+
+    this.block = view;
+    this.blockSize = this.block.length;
   }
 
   private async readValue<T>(byteLength: number, ctor: (data: Uint8Array) => T): Promise<T> {
-    if (this.isAsyncReading)
-      throw new Error(
-        "Attempt to read from the stream before an on-going read has finished. You may have forgotten to `await` one of the DataStreamReader methods.",
-      );
-    this.isAsyncReading = true;
-
     this.scratch.reserve(byteLength);
 
-    try {
-      while (true) {
-        /* Spin until the read buffer has data */
-        await this.requestBlock();
+    while (true) {
+      /* Spin until the read buffer has data */
+      if (this.block.length === 0) await this.requestBlock();
 
-        /* Attempt to construct in-place from the stream */
-        if (this.scratch.size === 0 && this.block.length >= byteLength) {
-          const result = ctor(new Uint8Array(this.block.buffer, this.block.byteOffset, byteLength));
-          this.block = this.block.subarray(byteLength);
-          return result;
-        }
-
-        /* Otherwise, we must accumulate into the scratch buffer */
-        this.block = this.block.subarray(this.scratch.push(this.block));
-        if (this.scratch.size === byteLength) return ctor(this.scratch.data);
+      /* Attempt to construct in-place from the stream */
+      if (this.scratch.size === 0 && this.block.length >= byteLength) {
+        const result = ctor(this.block.subarray(0, byteLength));
+        this.block = this.block.subarray(byteLength);
+        return result;
       }
-    } finally {
-      this.isAsyncReading = false;
+
+      /* Otherwise, we must accumulate into the scratch buffer */
+      this.block = this.block.subarray(this.scratch.push(this.block));
+      if (this.scratch.size === byteLength) return ctor(this.scratch.data);
     }
   }
 }
