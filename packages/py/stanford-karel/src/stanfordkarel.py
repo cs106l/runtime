@@ -18,8 +18,8 @@ from typing import Callable, Optional
 import os
 import sys
 from pathlib import Path
+import time
 
-from canvas import HTMLCanvas
 from .karel_program import KarelProgram
 from .karel_canvas import KarelCanvas
 
@@ -94,7 +94,7 @@ def karel_action_decorator(
             speed = float(os.environ["KAREL_SPEED"])
         else:
             speed = __karel.world.init_speed
-        HTMLCanvas.sleep((1 - speed / 100) * 1000)
+        time.sleep((1 - speed / 100) * 1000)
 
     return wrapper
 

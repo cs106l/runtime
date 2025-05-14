@@ -19,7 +19,7 @@ import cmath
 import math
 from typing import TYPE_CHECKING
 
-from canvas import HTMLCanvas
+from context2d import Context2D
 
 from .karel_world import Direction, KarelWorld, Wall
 
@@ -69,7 +69,7 @@ SIMPLE_KAREL_HEIGHT = 0.7
 SIMPLE_KAREL_WIDTH = 0.8
 
 
-class KarelCanvas(HTMLCanvas):
+class KarelCanvas(Context2D):
     def __init__(
         self,
         width: int,
@@ -77,10 +77,7 @@ class KarelCanvas(HTMLCanvas):
         world: KarelWorld,
         karel: KarelProgram
     ) -> None:
-        super().__init__()
-        self.width = width
-        self.height = height
-
+        super().__init__(width=width, height=height)
         self.world = world
         self.karel = karel
         self.icon = DEFAULT_ICON
@@ -105,53 +102,51 @@ class KarelCanvas(HTMLCanvas):
     def create_default_polygon(
         self,
         points: list[float],
-        fill: str = "foreground",
+        fill: str = "black",
         outline: bool = True
     ) -> None:
         if len(points) < 4 or len(points) % 2 != 0:
             raise ValueError("Points must contain an even number of coordinates and at least one segment.")
 
-        self.beginPath()
-        self.moveTo(points[0], points[1])
+        self.begin_path()
+        self.move_to(points[0], points[1])
         for i in range(2, len(points), 2):
-            self.lineTo(points[i], points[i + 1])
-        self.closePath()
+            self.line_to(points[i], points[i + 1])
+        self.close_path()
 
         if fill:
-            self.fillStyle = fill
+            self.fill_style = fill
             self.fill()
 
         if outline:
             self.stroke()
 
     def create_line(self, x1: float, y1: float, x2: float, y2: float, width: float=1):
-        self.beginPath()
-        self.moveTo(x1, y1)
-        self.lineTo(x2, y2)
-        self.lineWidth = width
+        self.begin_path()
+        self.move_to(x1, y1)
+        self.line_to(x2, y2)
+        self.line_width = width
         self.stroke()
 
-    def create_text(self, x: float, y: float, text: str, fill: str = "foreground", font: str = ""):
-        if fill: self.fillStyle = fill
+    def create_text(self, x: float, y: float, text: str, fill: str = "black", font: str = ""):
+        if fill: self.fill_style = fill
         if font: self.font = font
-        self.fillText(text, x, y)
+        self.fill_text(text, x, y)
 
     def create_rectangle(self, x1: float, y1: float, x2: float, y2: float, fill: str = "", outline: bool = True):
-        self.beginPath()
+        self.begin_path()
         self.rect(x1, y1, x2 - x1, y2 - y1)
         if fill:
-            self.fillStyle = fill
+            self.fill_style = fill
             self.fill()
         
         if outline:
             self.stroke()
 
     def draw(self) -> None:
-        self.reset()
-
-        self.strokeStyle = "foreground"
-        self.textAlign = "center"
-        self.textBaseline = "middle"
+        self.stroke_style = "black"
+        self.text_align = "center"
+        self.text_baseline = "middle"
 
         self.draw_world()
         self.draw_karel()
@@ -418,7 +413,7 @@ class KarelCanvas(HTMLCanvas):
         entire_body_points = outer_points + inner_points
 
         # First draw the filled non-convex polygon
-        self.create_default_polygon(entire_body_points, fill="background", outline=False)
+        self.create_default_polygon(entire_body_points, fill="white", outline=False)
 
         # Then draw the transparent exterior edges of Karel's body
         self.create_default_polygon(outer_points, fill="")
@@ -442,7 +437,7 @@ class KarelCanvas(HTMLCanvas):
             mouth_y,
         ]
         self.rotate_points(center, mouth_points, direction)
-        self.create_default_polygon(mouth_points, fill="background")
+        self.create_default_polygon(mouth_points, fill="white")
 
     def draw_karel_legs(
         self, x: float, y: float, center: tuple[float, float], direction: float

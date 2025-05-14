@@ -184,5 +184,4 @@ export function configure(language: Language): LanguageConfiguration {
   return LanguagesConfig[language];
 }
 
-export * from "./canvas";
 export * from "./canvas/host";
