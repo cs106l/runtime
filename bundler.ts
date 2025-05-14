@@ -51,7 +51,13 @@ const ManifestSchema = PackageMetaSchema.omit({
   /**
    * Whether or not to hide this package on the list of public packages
    */
-  hidden: z.boolean().optional()
+  hidden: z.boolean().optional(),
+
+  /**
+   * The name of this package's directory in the virtual filesystem.
+   * @default manifest.name
+   */
+  importAs: z.string().optional()
 });
 
 function findManifestPaths(dir: string = PackagesDir): string[] {
@@ -169,7 +175,7 @@ async function bundleManifest(manifestPath: string, outputDir: string, sourceUrl
 
   files.push("."); // Ensures empty directories can be tarred
 
-  const packagePrefix = `/.packages/${manifest.name}`;
+  const packagePrefix = `/.packages/${manifest.importAs ?? manifest.name}`;
   const lang = getManifestLanguage(manifestPath);
   const langDir = path.join(outputDir, lang);
 
