@@ -1,4 +1,4 @@
-import { AsyncChunkReader } from "../stream";
+import { AsyncChunkReader, LockStrategy, LockTimeoutExceededError } from "../stream";
 import {
   applyEventToContext,
   CanvasEvent,
@@ -170,6 +170,7 @@ class CanvasRegistration {
 
   public commit() {
     if (this.removed) return;
+    if (this.backBuffer.length === 0) return;
     const tmp = this.frontBuffer;
     this.frontBuffer = this.backBuffer;
     this.backBuffer = tmp;
@@ -218,11 +219,19 @@ function handleTheme(colorMap: Record<string, string>) {
 }
 
 async function enterEventLoop(connection: CanvasConnection) {
-  const reader = new AsyncChunkReader(connection.eventBuffer);
+  const reader = new AsyncChunkReader(
+    connection.eventBuffer,
+    LockStrategy.backoff({
+      delayCycles: 20,
+      minMs: 1,
+      maxMs: 5000,
+      timeoutMs: 60000,
+    }),
+  );
 
   while (true) {
-    const chunk = await reader.read();
     try {
+      const chunk = await reader.read();
       const event = unpackCanvasEvent(chunk);
       const globalId = getGlobalId(connection.instanceId, event[1]);
 
@@ -231,7 +240,6 @@ async function enterEventLoop(connection: CanvasConnection) {
         for (const reg of contexts.values()) {
           reg.commit();
         }
-
         return;
       }
 
@@ -313,6 +321,11 @@ async function enterEventLoop(connection: CanvasConnection) {
 
       registration.onEvent(event);
     } catch (err: unknown) {
+      /**
+       * If we don't get any data past the timeout, assume the connection is dead
+       * This can happen when killing the wasi host
+       */
+      if (err instanceof LockTimeoutExceededError) break;
       handleError(err);
     }
   }

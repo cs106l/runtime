@@ -341,6 +341,14 @@ export class StreamReader extends Stream {
   }
 }
 
+export class LockTimeoutExceededError extends Error {
+  constructor() {
+    super("Lock timeout exceeded");
+    this.name = "LockTimeoutExceededError";
+    Object.setPrototypeOf(this, LockTimeoutExceededError.prototype);
+  }
+}
+
 /**
  * Represents a locking stategy that spin locks can utilize.
  * By default, this lock busy waits. However, subclasses can change this strategy.
@@ -363,8 +371,85 @@ export class LockStrategy {
     return 0;
   }
 
-  public static get busy() {
+  public static busy() {
     return new LockStrategy();
+  }
+
+  public static backoff(options?: Partial<BackoffLockStrategyOptions>) {
+    return new BackoffLockStrategy(options);
+  }
+}
+
+export type BackoffLockStrategyOptions = {
+  /**
+   * The number of cycles to busy wait before applying exponential backoff.
+   * @default 0
+   */
+  delayCycles: number;
+
+  /**
+   * The minimum number of milliseconds to sleep.
+   * This is the starting point for the exponential backoff.
+   * @default 1
+   */
+  minMs: number;
+
+  /**
+   * The factor by which the sleep time is multiplied on each lock spin.
+   * @default 2
+   */
+  factor: number;
+
+  /**
+   * The maximum number of milliseconds to sleep.
+   * @default Infinity
+   */
+  maxMs: number;
+
+  /**
+   * If the lock is not acquired within this time, throw a `LockTimeoutExceededError`.
+   * @default Infinity
+   */
+  timeoutMs: number;
+};
+
+export class BackoffLockStrategy extends LockStrategy {
+  private options: BackoffLockStrategyOptions;
+
+  private delayCount = 0;
+  private curDelay = 0;
+  private resetTime = 0;
+
+  constructor(options?: Partial<BackoffLockStrategyOptions>) {
+    super();
+    this.options = {
+      delayCycles: options?.delayCycles ?? 0,
+      minMs: options?.minMs ?? 1,
+      factor: options?.factor ?? 2,
+      maxMs: options?.maxMs ?? Infinity,
+      timeoutMs: options?.timeoutMs ?? Infinity,
+    };
+  }
+
+  public reset(): void {
+    this.resetTime = Date.now();
+    this.delayCount = 0;
+    this.curDelay = this.options.minMs;
+  }
+
+  public spin(): number {
+    if (this.delayCount < this.options.delayCycles) {
+      this.delayCount++;
+      return 0;
+    }
+
+    if (Date.now() - this.resetTime > this.options.timeoutMs) {
+      throw new LockTimeoutExceededError();
+    }
+
+    const delay = Math.min(this.curDelay, this.options.maxMs);
+    this.curDelay *= this.options.factor;
+    return delay;
   }
 }
 
@@ -556,7 +641,7 @@ export class AsyncChunkReader {
   private blockSize: number = 0;
 
   constructor(private buffer: SharedArrayBuffer, strategy?: LockStrategy) {
-    strategy ??= LockStrategy.busy;
+    strategy ??= LockStrategy.busy();
     this.lock = new AsyncLock(strategy);
     this.stream = new StreamReader(buffer);
   }
