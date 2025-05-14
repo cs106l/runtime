@@ -94,7 +94,7 @@ def karel_action_decorator(
             speed = float(os.environ["KAREL_SPEED"])
         else:
             speed = __karel.world.init_speed
-        time.sleep((1 - speed / 100) * 1000)
+        time.sleep(1 - speed / 100)
 
     return wrapper
 
