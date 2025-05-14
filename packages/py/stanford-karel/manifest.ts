@@ -5,8 +5,7 @@ const manifest: Manifest = {
   description: "Official Stanford Karel library used in CS 106A",
   version: "0.2.0",
   dependencies: ["context2d"],
-  rootDir: "src",
-  hidden: true,
+  rootDir: "src"
 };
 
 export default manifest;
