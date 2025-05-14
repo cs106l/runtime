@@ -314,8 +314,6 @@ async function enterEventLoop(connection: CanvasConnection) {
       registration.onEvent(event);
     } catch (err: unknown) {
       handleError(err);
-    } finally {
-      chunk.release();
     }
   }
 }

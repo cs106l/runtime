@@ -449,10 +449,7 @@ export class ReadableChunk {
    * @param data The data buffer of this chunk
    * @param owned Whether or not this chunk is a view over the raw stream buffer it came from (`false`), or an intermediate buffer (`true`).
    */
-  public constructor(
-    public readonly data: Uint8Array,
-    private readonly owned: boolean,
-  ) {
+  public constructor(public readonly data: Uint8Array, private readonly owned: boolean) {
     this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   }
 
@@ -547,6 +544,18 @@ export class AsyncChunkReader {
 
   private isAsyncReading = false;
 
+  /**
+   * The current block we are reading. This must be fully
+   * depleted before requesting the next block
+   */
+  private block: Uint8Array = new Uint8Array();
+
+  /**
+   * The number of bytes requested.
+   * This is the number of bytes we will consume from the stream when we are done reading the block.
+   */
+  private requestSize: number = 0;
+
   constructor(private buffer: SharedArrayBuffer, strategy?: LockStrategy) {
     strategy ??= LockStrategy.busy;
     this.lock = new AsyncLock(strategy);
@@ -554,19 +563,32 @@ export class AsyncChunkReader {
   }
 
   public async read(): Promise<ReadableChunk> {
-    const byteLength = await this.readValue(4, (v) => {
-      const ret = new DataView(v.buffer, v.byteOffset, v.byteLength).getUint32(0);
-      if (v.buffer === this.buffer) this.stream.consume(4);
-      return ret;
-    });
-    const data = await this.readValue(byteLength, (v) => v);
-    return new ReadableChunk(data, data.buffer !== this.buffer);
+    const byteLength = await this.readValue(4, (v) =>
+      new DataView(v.buffer, v.byteOffset, v.byteLength).getUint32(0),
+    );
+    return await this.readValue(byteLength, (v) => new ReadableChunk(v, v.buffer !== this.buffer));
   }
 
+  private requestBlock(): void | Promise<void> {
+    if (this.block.length === 0) {
+      return (async () => {
+        this.stream.consume(this.requestSize);
 
-  public async *readAll(): AsyncIterableIterator<ReadableChunk> {
+        let view: Uint8Array = this.stream.valid();
+
+        if (view.length === 0) {
+          this.lock.reset();
+          while (view.length === 0) {
+            await this.lock.spin();
+            view = this.stream.valid();
+          }
+        }
+
+        this.block = view;
+        this.requestSize = this.block.length;
+      })();
+    }
   }
-
 
   private async readValue<T>(byteLength: number, ctor: (data: Uint8Array) => T): Promise<T> {
     if (this.isAsyncReading)
@@ -580,25 +602,17 @@ export class AsyncChunkReader {
     try {
       while (true) {
         /* Spin until the read buffer has data */
-        let view: Uint8Array = this.stream.valid();
-
-        if (byteLength > 0 && view.length === 0) {
-          this.lock.reset();
-          while (view.length === 0) {
-            await this.lock.spin();
-            view = this.stream.valid();
-          }
-        }
+        await this.requestBlock();
 
         /* Attempt to construct in-place from the stream */
-        if (this.scratch.size === 0 && view.length >= byteLength) {
-          return ctor(
-            new Uint8Array(view.buffer, view.byteOffset, Math.min(byteLength, view.length)),
-          );
+        if (this.scratch.size === 0 && this.block.length >= byteLength) {
+          const result = ctor(new Uint8Array(this.block.buffer, this.block.byteOffset, byteLength));
+          this.block = this.block.subarray(byteLength);
+          return result;
         }
 
         /* Otherwise, we must accumulate into the scratch buffer */
-        this.stream.consume(this.scratch.push(view));
+        this.block = this.block.subarray(this.scratch.push(this.block));
         if (this.scratch.size === byteLength) return ctor(this.scratch.data);
       }
     } finally {
