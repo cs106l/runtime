@@ -210,18 +210,20 @@ export class DOMCanvasHost extends CanvasHost {
    * @param timeoutMs The number of milliseconds to wait before removing the canvases.
    *                  If non-zero, during this period, if a new canvas is requested, an existing one can be reused.
    *                  This is useful to avoid flickering associated with removing and recreating canvases.
+   *                  Pass Infinity (default) to mark all existing canvases as reusable, but never remove them after a timeout.
    */
-  reset(timeoutMs: number = 0) {
+  reset(timeoutMs: number = Infinity) {
     clearTimeout(this.staleTimeout);
     if (timeoutMs === undefined || timeoutMs <= 0) {
       this.canvases.forEach((c) => this.removeCanvas(c.canvas));
       this.canvases.length = 0;
     } else {
       this.canvases.forEach((c) => (c.stale = true));
-      this.staleTimeout = setTimeout(() => {
-        this.canvases.filter((c) => c.stale).forEach((c) => this.removeCanvas(c.canvas));
-        this.canvases = this.canvases.filter((c) => !c.stale);
-      }, timeoutMs);
+      if (timeoutMs !== Infinity)
+        this.staleTimeout = setTimeout(() => {
+          this.canvases.filter((c) => c.stale).forEach((c) => this.removeCanvas(c.canvas));
+          this.canvases = this.canvases.filter((c) => !c.stale);
+        }, timeoutMs);
     }
   }
 }
