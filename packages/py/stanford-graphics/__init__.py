@@ -425,9 +425,9 @@ class Canvas:
         _param(x2, [float, int], "x2", "find_overlapping")
         _param(y2, [float, int], "y2", "find_overlapping")
         overlaps = []
-        for elem in self.__elems.values():
+        for tag, elem in self.__elems.items():
             if elem.overlaps(x1, y1, x2, y2):
-                overlaps.append(elem)
+                overlaps.append(tag)
         return overlaps
     
     def clear(self):

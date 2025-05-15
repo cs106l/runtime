@@ -103,6 +103,7 @@ export abstract class CanvasHost {
       type: "connection",
       to: "worker",
       connection,
+      colorMap: this.theme,
     };
 
     worker.postMessage(connectionMessage);

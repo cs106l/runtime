@@ -23,6 +23,7 @@ export type OutgoingMessage =
 export type ConnectionMessage = HostToWorkerMessage & {
   type: "connection";
   connection: CanvasConnection;
+  colorMap: Record<string, string>;
 };
 
 export type RequestCanvasMessage = WorkerToHostMessage & {
@@ -124,21 +125,37 @@ class CanvasRegistration {
   private frontBuffer: CanvasEvent[] = [];
 
   /**
-   * Events that are theme dependent.
-   * The latest event of each theme-dependent type is stored here.
-   * These must be replayed when the theme changes, since the context may have stale values for these.
+   * Stores a set of events that can be replayed to reset the context back to its state at the beginning of the frame.
+   * This is used to ensure that when refreshing a frame (e.g. on a theme change), it begins from the same canvas state.
    */
-  private themeBuffer: CanvasEvent[] = [
-    [CanvasEventType.FillStyle, 0, "black"],
-    [CanvasEventType.StrokeStyle, 0, "black"],
-    [CanvasEventType.ShadowColor, 0, "rgba(0, 0, 0, 0)"],
-  ];
-
-  private static ThemeTypes: readonly CanvasEventType[] = [
-    CanvasEventType.FillStyle,
-    CanvasEventType.StrokeStyle,
-    CanvasEventType.ShadowColor,
-  ];
+  private stateBuffer = new Map<CanvasEventType, CanvasEvent | null>([
+    [CanvasEventType.FillStyle, [CanvasEventType.FillStyle, 0, "black"]],
+    [CanvasEventType.StrokeStyle, [CanvasEventType.StrokeStyle, 0, "black"]],
+    [CanvasEventType.ShadowColor, [CanvasEventType.ShadowColor, 0, "rgba(0, 0, 0, 0)"]],
+    [CanvasEventType.LineWidth, null],
+    [CanvasEventType.LineCap, null],
+    [CanvasEventType.LineJoin, null],
+    [CanvasEventType.MiterLimit, null],
+    [CanvasEventType.SetLineDash, null],
+    [CanvasEventType.LineDashOffset, null],
+    [CanvasEventType.Font, null],
+    [CanvasEventType.TextAlign, null],
+    [CanvasEventType.TextBaseline, null],
+    [CanvasEventType.Direction, null],
+    [CanvasEventType.LetterSpacing, null],
+    [CanvasEventType.FontKerning, null],
+    [CanvasEventType.FontStretch, null],
+    [CanvasEventType.FontVariantCaps, null],
+    [CanvasEventType.WordSpacing, null],
+    [CanvasEventType.ShadowBlur, null],
+    [CanvasEventType.ShadowOffsetX, null],
+    [CanvasEventType.ShadowOffsetY, null],
+    [CanvasEventType.GlobalAlpha, null],
+    [CanvasEventType.GlobalCompositeOperation, null],
+    [CanvasEventType.Filter, null],
+    [CanvasEventType.ImageSmoothingEnabled, null],
+    [CanvasEventType.ImageSmoothingQuality, null],
+  ]);
 
   /**
    * Whether this canvas registration has been removed.
@@ -150,31 +167,29 @@ class CanvasRegistration {
   constructor(
     public readonly context: OffscreenCanvasRenderingContext2D,
     public readonly contextId: number,
-  ) {}
+  ) {
+    /* Apply initial theming */
+    this.render();
+  }
 
   public onEvent(evt: CanvasEvent) {
     if (this.removed) return;
     this.backBuffer.push(evt);
-
-    if (CanvasRegistration.ThemeTypes.includes(evt[0] as CanvasEventType)) {
-      for (let i = this.themeBuffer.length - 1; i >= 0; i--) {
-        if (this.themeBuffer[i][0] === evt[0]) {
-          this.themeBuffer[i] = evt;
-          return;
-        }
-      }
-
-      this.themeBuffer.push(evt);
-    }
   }
 
   public commit() {
     if (this.removed) return;
+
+    /* Store current state events in front buffer into state buffer */
+    for (const evt of this.frontBuffer) {
+      if (this.stateBuffer.has(evt[0])) this.stateBuffer.set(evt[0], evt);
+    }
+
     const tmp = this.frontBuffer;
     this.frontBuffer = this.backBuffer;
     this.backBuffer = tmp;
     this.backBuffer.length = 0;
-    this.render();
+    this.render(false);
   }
 
   public remove() {
@@ -182,9 +197,13 @@ class CanvasRegistration {
     this.commit();
     this.removed = true;
   }
-    
-  public render() {
-    this.themeBuffer.forEach((evt) => applyEventToContext(this.context, evt, theme));
+
+  public render(refresh: boolean = true) {
+    /** Refresh state at start of frame */
+    for (const value of this.stateBuffer.values()) {
+      if (value) applyEventToContext(this.context, value, theme);
+    }
+
     this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
     this.frontBuffer.forEach((evt) => applyEventToContext(this.context, evt, theme));
   }
@@ -192,7 +211,10 @@ class CanvasRegistration {
 
 onmessage = async function (evt: MessageEvent<IncomingMessage>) {
   try {
-    if (evt.data.type === "connection") return await enterEventLoop(evt.data.connection);
+    if (evt.data.type === "connection") {
+      handleTheme(evt.data.colorMap);
+      return await enterEventLoop(evt.data.connection);
+    }
     else if (evt.data.type === "theme") return handleTheme(evt.data.colorMap);
   } catch (err: unknown) {
     handleError(err, true);
@@ -231,10 +253,6 @@ async function enterEventLoop(connection: CanvasConnection) {
       const globalId = getGlobalId(connection.instanceId, event[1]);
 
       if (event[0] === CanvasEventType.ConnectionClosed) {
-        /* Force commit all canvases on connection close */
-        for (const reg of contexts.values()) {
-          reg.commit();
-        }
         return;
       }
 
