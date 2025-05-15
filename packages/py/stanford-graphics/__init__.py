@@ -90,7 +90,7 @@ class _Shape(ABC):
         self.hidden = False
         self.fill = color or fill
         self.outline = outline
-        self.line_width = outline
+        self.line_width = width
         self.width = None
         self.height = None
 
