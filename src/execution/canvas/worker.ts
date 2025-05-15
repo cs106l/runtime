@@ -170,7 +170,6 @@ class CanvasRegistration {
 
   public commit() {
     if (this.removed) return;
-    if (this.backBuffer.length === 0) return;
     const tmp = this.frontBuffer;
     this.frontBuffer = this.backBuffer;
     this.backBuffer = tmp;

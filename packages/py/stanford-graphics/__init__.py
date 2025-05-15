@@ -6,6 +6,11 @@ import weakref
 
 _DEFAULT_OUTLINE_WIDTH = 1
 
+
+def _unsupported(function_name):
+    raise NotImplementedError(f"{function_name} is not yet supported! It will be supported in a future release of this library!")
+
+
 def _param(var, var_types, param_name, function_name):
     assert type(var) in var_types, (
         param_name
@@ -18,8 +23,50 @@ def _param(var, var_types, param_name, function_name):
         + " instead."
     )
 
-def _unsupported(function_name):
-    raise NotImplementedError(f"{function_name} is not yet supported! It will be supported in a future release of this library!")
+
+def _line_aabb_test(x1, y1, x2, y2, X1, Y1, X2, Y2):
+    """
+    Tests if a line (x1, y1) -> (x2, y2) intersects an axis-aligned bounding box (X1, Y1, X2, Y2)
+    """
+    xmin, xmax = min(X1, X2), max(X1, X2)
+    ymin, ymax = min(Y1, Y2), max(Y1, Y2)
+
+    # Liang-Barsky line clipping algorithm
+    dx = x2 - x1
+    dy = y2 - y1
+
+    tmin, tmax = 0.0, 1.0
+
+    def clip(p, q):
+        nonlocal tmin, tmax
+        if p == 0:
+            if q < 0:
+                return False
+            return True
+        t = q / p
+        if p < 0:
+            if t > tmax:
+                return False
+            if t > tmin:
+                tmin = t
+        else:
+            if t < tmin:
+                return False
+            if t < tmax:
+                tmax = t
+        return True
+
+    if not clip(-dx, x1 - xmin):
+        return False
+    if not clip(dx, xmax - x1):
+        return False
+    if not clip(-dy, y1 - ymin):
+        return False
+    if not clip(dy, ymax - y1):
+        return False
+
+    return True
+
 
 class _Shape(ABC):
     x: float                        # The x coordinate of the shape. Shape-specific meaning
@@ -55,11 +102,12 @@ class _Shape(ABC):
         self.x += dx
         self.y += dy
 
-    def get_left_x(self) -> float: return self.x
-    def get_top_y(self) -> float: return self.y
+    def get_left_x(self) -> float | None: return self.x
+    def get_top_y(self) -> float | None: return self.y
+    def get_x(self) -> float | None: return self.x
+    def get_y(self) -> float | None: return self.y
     
     def draw(self, ctx: Context2D):
-        if self.hidden: return
         if not self.fill and not self.outline: return
         if self.fill: ctx.fill_style = self.fill
         if self.outline:
@@ -69,6 +117,10 @@ class _Shape(ABC):
 
     @abstractmethod
     def _draw(self, ctx: Context2D):
+        pass
+
+    @abstractmethod
+    def overlaps(self, x1, y1, x2, y2) -> bool:
         pass
 
 
@@ -84,6 +136,9 @@ class _Rectangle(_Shape):
     def _draw(self, ctx):
         if self.fill: ctx.fill_rect(self.x, self.y, self.width, self.height)
         if self.outline: ctx.stroke_rect(self.x, self.y, self.width, self.height)
+
+    def overlaps(self, x1, y1, x2, y2) -> bool:
+        return self.x <= x2 and self.x + self.width >= x1 and self.y <= y2 and self.y + self.height >= y1
 
 
 class _Oval(_Shape):
@@ -102,6 +157,23 @@ class _Oval(_Shape):
         ctx.ellipse(self.x + radius_x, self.y + radius_y, radius_x, radius_y, 0, 0, 2 * math.pi)
         if self.fill: ctx.fill()
         if self.outline: ctx.stroke()
+
+    def overlaps(self, x1, y1, x2, y2) -> bool:
+        Cx = self.x + self.width / 2
+        Cy = self.y + self.height / 2
+        rx = self.width / 2
+        ry = self.height / 2
+
+        # Clamp point on rect to center of ellipse
+        px = max(x1, min(Cx, x2))
+        py = max(y1, min(Cy, y2))
+
+        # Normalize and test ellipse inequality
+        dx = (px - Cx) / rx
+        dy = (py - Cy) / ry
+
+        return dx * dx + dy * dy <= 1
+
 
 class _Line(_Shape):
 
@@ -126,10 +198,15 @@ class _Line(_Shape):
         ctx.line_width = self.line_width or _DEFAULT_OUTLINE_WIDTH
         self._draw(ctx)
 
+    def overlaps(self, x1, y1, x2, y2) -> bool:
+        return _line_aabb_test(self.x, self.y, self.x + self.width, self.y + self.height, x1, y1, x2, y2)
+    
+
 class _Text(_Shape):
 
     font: str
     anchor: str
+    text: str
 
     def __init__(self, x, y, text, font = "Arial", font_size="12", fill="black", anchor = "nw", outline=None, width=None, color=None):
         super().__init__(x, y, fill, outline, width, color, "create_text")
@@ -153,6 +230,7 @@ class _Text(_Shape):
 
         self.font = f"{font_size} {font}"
         self.anchor = anchor
+        self.text = text
 
     def _draw(self, ctx):
         ctx.font = self.font
@@ -192,6 +270,16 @@ class _Text(_Shape):
         if self.outline: ctx.stroke_text(self.text, self.x, self.y)
 
 
+    def overlaps(self, x1, y1, x2, y2) -> bool:
+        return False
+    
+    # Note: On Code in Place, these methods return None for text objects
+    def get_left_x(self) -> float | None: return None
+    def get_top_y(self) -> float | None: return None
+    def get_x(self) -> float | None: return None
+    def get_y(self) -> float | None: return None
+
+
 class _Polygon(_Shape):
 
     points: list[tuple[float, float]]
@@ -201,10 +289,37 @@ class _Polygon(_Shape):
             raise ValueError("Coordinates must be provided in pairs.")
         assert all(isinstance(element, (int, float)) for element in args), "Some coordinates are incorrect types. Accepted types include: int, float."
 
-        super().__init__(args[0], args[1], fill, outline, width, color, "create_polygon")
+        ref_x = args[0] if len(args) > 0 else 0
+        ref_y = args[1] if len(args) > 1 else 0
+
+        super().__init__(ref_x, ref_y, fill, outline, width, color, "create_polygon")
+
+        self.points = []
+        for i in range(0, len(args), 2):
+            self.points.append((args[i] - ref_x, args[i + 1] - ref_y))
+
+    def _draw(self, ctx):
+        if len(self.points) == 0: return
+        ctx.begin_path()
+        ctx.move_to(self.points[0][0] + self.x, self.points[0][1] + self.y)
+        for i in range(1, len(self.points)):
+            ctx.line_to(self.points[i][0] + self.x, self.points[i][1] + self.y)
+        ctx.close_path()
+        if self.fill: ctx.fill()
+        if self.outline: ctx.stroke()
 
     
-
+    def overlaps(self, x1, y1, x2, y2) -> bool:
+        # TODO: Consider implementing this
+        # For now, this matches the behaviour of the Code in Place IDE, circa 2025
+        return False
+    
+    # Note: On Code in Place, these methods return None for polygon objects
+    def get_left_x(self) -> float | None: return None
+    def get_top_y(self) -> float | None: return None
+    def get_x(self) -> float | None: return None
+    def get_y(self) -> float | None: return None
+    
 
 class Canvas:
     DEFAULT_WIDTH = 500
@@ -228,6 +343,7 @@ class Canvas:
 
     def update(self):
         for elem in self.__elems.values():
+            if elem.hidden: continue
             elem.draw(self.__ctx)
         self.__ctx.commit()
 
@@ -249,6 +365,9 @@ class Canvas:
     def create_image_with_size(self, *args, **kwargs) -> str:
         _unsupported("create_image_with_size")
     
+    def create_polygon(self, *args, **kwargs) -> str:
+        return self._create(_Polygon(*args, **kwargs))
+    
     def move(self, objectId, dx, dy):
         _param(objectId, [str], "objectId", "move")
         _param(dx, [float, int], "dx", "move")
@@ -263,6 +382,12 @@ class Canvas:
         if objectId not in self.__elems: return
         self.__elems[objectId].moveto(x, y)
 
+    def move_to(self, objectId, x, y):
+        _param(objectId, [str], "objectId", "move_to")
+        _param(x, [float, int], "x", "move_to")
+        _param(y, [float, int], "y", "move_to")
+        self.moveto(objectId, x, y)
+
     def delete(self, objectId):
         _param(objectId, [str], "objectId", "delete")
         if objectId not in self.__elems: return
@@ -274,6 +399,95 @@ class Canvas:
         if objectId not in self.__elems: return
         self.__elems[objectId].set_hidden(hidden)
 
+    def change_text(self, objectId, text):
+        _param(objectId, [str], "objectId", "change_text")
+        _param(text, [str], "text", "change_text")
+        if objectId not in self.__elems: return
+        elem = self.__elems[objectId]
+        if not isinstance(elem, _Text): return
+        elem.text = text
+
+    def get_mouse_x(self) -> float:
+        _unsupported("get_mouse_x")
+
+    def get_mouse_y(self) -> float:
+        _unsupported("get_mouse_y")
+
+    def get_last_click(self):
+        _unsupported("get_last_click")
+
+    def get_last_key_press(self):
+        _unsupported("get_last_key_press")
+
+    def find_overlapping(self, x1, y1, x2, y2):
+        _param(x1, [float, int], "x1", "find_overlapping")
+        _param(y1, [float, int], "y1", "find_overlapping")
+        _param(x2, [float, int], "x2", "find_overlapping")
+        _param(y2, [float, int], "y2", "find_overlapping")
+        overlaps = []
+        for elem in self.__elems.values():
+            if elem.overlaps(x1, y1, x2, y2):
+                overlaps.append(elem)
+        return overlaps
+    
+    def clear(self):
+        self.__elems.clear()
+
+    def get_left_x(self, objectId) -> float:
+        _param(objectId, [str], "objectId", "get_left_x")
+        if objectId not in self.__elems: return None
+        return self.__elems[objectId].get_left_x()
+    
+    def get_top_y(self, objectId) -> float:
+        _param(objectId, [str], "objectId", "get_top_y")
+        if objectId not in self.__elems: return None
+        return self.__elems[objectId].get_top_y()
+    
+    def get_x(self, objectId) -> float:
+        _param(objectId, [str], "objectId", "get_x")
+        if objectId not in self.__elems: return None
+        return self.__elems[objectId].get_x()
+    
+    def get_y(self, objectId) -> float:
+        _param(objectId, [str], "objectId", "get_y")
+        if objectId not in self.__elems: return None
+        return self.__elems[objectId].get_y()
+    
+    def get_object_width(self, objectId) -> float:
+        _param(objectId, [str], "objectId", "get_object_width")
+        if objectId not in self.__elems: return None
+        return self.__elems[objectId].width
+    
+    def get_object_height(self, objectId) -> float:
+        _param(objectId, [str], "objectId", "get_object_height")
+        if objectId not in self.__elems: return None
+        return self.__elems[objectId].height
+
+    def set_color(self, objectId, color):
+        _param(objectId, [str], "objectId", "set_color")
+        _param(color, [str], "color", "set_color")
+        if objectId not in self.__elems: return
+        self.__elems[objectId].fill = color
+
+    def set_outline_color(self, objectId, color):
+        _param(objectId, [str], "objectId", "set_outline_color")
+        _param(color, [str], "color", "set_outline_color")
+        if objectId not in self.__elems: return
+        self.__elems[objectId].outline = color
+
+    def wait_for_click(self):
+        _unsupported("wait_for_click")
+
+    def get_new_mouse_clicks(self):
+        _unsupported("get_new_mouse_clicks")
+
+    def get_new_key_presses(self):
+        _unsupported("get_new_key_presses")
+
+    def coords(self, objectId):
+        _param(objectId, [str], "objectId", "coords")
+        return [self.get_x(objectId), self.get_y(objectId)]
+        
     def _create(self, shape: _Shape) -> str:
         id = f"shape_{Canvas.__next_id}"
         Canvas.__next_id += 1
