@@ -22,14 +22,14 @@ def _unsupported(function_name):
     raise NotImplementedError(f"{function_name} is not yet supported! It will be supported in a future release of this library!")
 
 class _Shape(ABC):
-    x: float                        # The x coordinate of the shape. Shape-specific meaning.
-    y: float                        # The y coordinate of the shape. Shape-specific meaning.
+    x: float                        # The x coordinate of the shape. Shape-specific meaning
+    y: float                        # The y coordinate of the shape. Shape-specific meaning
     width: float | None             # The width of the shape (in pixels)
     height: float | None            # The height of the shape (in pixels)
     hidden: bool                    # If this shape is hidden
     fill: str | None                # Fill color. If None, shape is not filled  
     outline: str | None             # Outline color. If None, shape is not outlined
-    line_width: float | None     # Outline width. If None, outline has default width
+    line_width: float | None        # Outline width. If None, outline has default width
 
     def __init__(self, x: float, y: float, fill, outline, width, color, function_name: str):
         _param(x, [float, int], "x", function_name)
@@ -59,8 +59,8 @@ class _Shape(ABC):
     def get_top_y(self) -> float: return self.y
     
     def draw(self, ctx: Context2D):
-        if self.hidden:
-            return
+        if self.hidden: return
+        if not self.fill and not self.outline: return
         if self.fill: ctx.fill_style = self.fill
         if self.outline:
             ctx.stroke_style = self.outline
@@ -96,13 +96,35 @@ class _Oval(_Shape):
         self.height = y2 - y1
 
     def _draw(self, ctx):
-        if not self.fill and not self.outline: return
         radius_x = self.width / 2
         radius_y = self.height / 2
         ctx.begin_path()
         ctx.ellipse(self.x + radius_x, self.y + radius_y, radius_x, radius_y, 0, 0, 2 * math.pi)
         if self.fill: ctx.fill()
         if self.outline: ctx.stroke()
+
+class _Line(_Shape):
+
+    def __init__(self, x1, y1, x2, y2, fill="black", width=1, color=None):
+        super().__init__(x1, y1, fill, None, width, color, "create_line")
+        _param(x2, [float, int], "x2", "create_line")
+        _param(y2, [float, int], "y2", "create_line")
+        self.width = x2 - x1
+        self.height = y2 - y1
+
+    def _draw(self, ctx):
+        ctx.begin_path()
+        ctx.move_to(self.x, self.y)
+        ctx.line_to(self.x + self.width, self.y + self.height)
+        ctx.stroke()
+
+    # Line uses fill for its outline color, so the draw method needs to be customized
+    def draw(self, ctx: Context2D):
+        if self.hidden: return
+        if not self.fill: return
+        ctx.stroke_style = self.fill
+        ctx.line_width = self.line_width or _DEFAULT_OUTLINE_WIDTH
+        self._draw(ctx)
 
 class _Text(_Shape):
 
@@ -133,7 +155,6 @@ class _Text(_Shape):
         self.anchor = anchor
 
     def _draw(self, ctx):
-        if not self.fill and not self.outline: return
         ctx.font = self.font
 
         if self.anchor == "nw":
@@ -170,7 +191,20 @@ class _Text(_Shape):
         if self.fill: ctx.fill_text(self.text, self.x, self.y)
         if self.outline: ctx.stroke_text(self.text, self.x, self.y)
 
-        
+
+class _Polygon(_Shape):
+
+    points: list[tuple[float, float]]
+
+    def __init__(self, *args, fill="black", outline=None, width=None, color=None):
+        if len(args) % 2 != 0:
+            raise ValueError("Coordinates must be provided in pairs.")
+        assert all(isinstance(element, (int, float)) for element in args), "Some coordinates are incorrect types. Accepted types include: int, float."
+
+        super().__init__(args[0], args[1], fill, outline, width, color, "create_polygon")
+
+    
+
 
 class Canvas:
     DEFAULT_WIDTH = 500
@@ -203,11 +237,17 @@ class Canvas:
     def create_oval(self, *args, **kwargs) -> str:
         return self._create(_Oval(*args, **kwargs))
     
+    def create_line(self, *args, **kwargs) -> str:
+        return self._create(_Line(*args, **kwargs))
+    
     def create_text(self, *args, **kwargs) -> str:
         return self._create(_Text(*args, **kwargs))
     
     def create_image(self, *args, **kwargs) -> str:
         _unsupported("create_image")
+
+    def create_image_with_size(self, *args, **kwargs) -> str:
+        _unsupported("create_image_with_size")
     
     def move(self, objectId, dx, dy):
         _param(objectId, [str], "objectId", "move")
