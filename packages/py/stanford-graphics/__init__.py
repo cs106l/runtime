@@ -81,8 +81,8 @@ class Canvas:
         self.__ctx.commit()
 
     def _create(self, shape: _Shape) -> str:
-        id = f"shape_{_Shape.__next_id}"
-        _Shape.__next_id += 1
+        id = f"shape_{Canvas.__next_id}"
+        Canvas.__next_id += 1
         self.__elems[id] = shape
         self.update()
         return id
