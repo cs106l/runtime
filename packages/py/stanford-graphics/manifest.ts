@@ -6,7 +6,6 @@ const manifest: Manifest = {
   version: "0.1.0",
   dependencies: ["context2d"],
   files: ["**/*.py"],
-  hidden: true,
   importAs: "graphics"
 };
 
