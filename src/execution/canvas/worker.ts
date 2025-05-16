@@ -200,8 +200,10 @@ class CanvasRegistration {
 
   public render(refresh: boolean = true) {
     /** Refresh state at start of frame */
-    for (const value of this.stateBuffer.values()) {
-      if (value) applyEventToContext(this.context, value, theme);
+    if (refresh) {
+      for (const value of this.stateBuffer.values()) {
+        if (value) applyEventToContext(this.context, value, theme);
+      }
     }
 
     this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
