@@ -1,1 +1,0 @@
-{"ts":1744533382541,"sha":"8fff440483a3d90af8e60ad4350fe2789161ef7c","name":"random","description":"Utilities for random number generation","version":"2024.1","registry":"base","source":"https://raw.githubusercontent.com/cs106l/runtime/dist/cpp/random@2024.1.tar.gz","runtime":{"prefixFile":"/.packages/random/hello.cpp"}}
