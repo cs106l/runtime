@@ -167,6 +167,8 @@ async function start(msg: StartWorkerMessage, cxn: DriveConnection) {
       stderr: sendStderr,
       stdin: (maxByteLength) => getStdin(maxByteLength, msg.stdinBuffer),
     });
+
+    if (prevResult.exitCode !== 0) return prevResult;
   }
 
   return prevResult;
