@@ -1,0 +1,35 @@
+[
+  {
+    "ts": 1747381473197,
+    "sha": "f930f3548c6726aeb64e2d003538aaa69f0e0c21",
+    "name": "context2d",
+    "description": "Native support for browser CanvasRenderingContext2D",
+    "version": "0.1.0",
+    "registry": "base",
+    "source": "https://raw.githubusercontent.com/cs106l/runtime/dist/py/context2d@0.1.0.tar.gz"
+  },
+  {
+    "ts": 1747642999259,
+    "sha": "ee98b63dc384d39b05ead4b234bf98c1bf8a990f",
+    "name": "stanfordgraphics",
+    "description": "Stanford graphics library used in CS106A",
+    "version": "0.1.0",
+    "registry": "base",
+    "source": "https://raw.githubusercontent.com/cs106l/runtime/dist/py/stanfordgraphics@0.1.0.tar.gz",
+    "dependencies": [
+      "context2d"
+    ]
+  },
+  {
+    "ts": 1747643020468,
+    "sha": "ee98b63dc384d39b05ead4b234bf98c1bf8a990f",
+    "name": "stanfordkarel",
+    "description": "Official Stanford Karel library used in CS 106A",
+    "version": "0.1.0",
+    "registry": "base",
+    "source": "https://raw.githubusercontent.com/cs106l/runtime/dist/py/stanfordkarel@0.1.0.tar.gz",
+    "dependencies": [
+      "context2d"
+    ]
+  }
+]

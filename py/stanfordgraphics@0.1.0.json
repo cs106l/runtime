@@ -1,0 +1,1 @@
+{"ts":1747642999259,"sha":"ee98b63dc384d39b05ead4b234bf98c1bf8a990f","name":"stanfordgraphics","description":"Stanford graphics library used in CS106A","version":"0.1.0","registry":"base","source":"https://raw.githubusercontent.com/cs106l/runtime/dist/py/stanfordgraphics@0.1.0.tar.gz","dependencies":["context2d"]}
